@@ -5,7 +5,7 @@
 // following signature:
 // (w http.ResponseWriter, r *http.Request)
 //
-// For further deployed details, refer to now.json.
+// For further deployment details, refer to now.json.
 // The file contains the routing definitions, which should be an
 // exact match with the routing in this file.
 package main
@@ -13,6 +13,8 @@ package main
 import (
 	"net/http"
 	"os"
+	"survey-api/internal/api/auth/login"
+	"survey-api/internal/api/auth/register"
 )
 
 func main() {
@@ -29,6 +31,9 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Survey server is running on http://" + host + ":" + port))
 	})
+	http.HandleFunc("/register", register.Handler)
+	http.HandleFunc("/login", login.Handler)
+
 	err := http.ListenAndServe(host+":"+port, nil)
 	if err != nil {
 		panic(err)
