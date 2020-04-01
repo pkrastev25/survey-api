@@ -1,0 +1,6 @@
+/.vscode
+/README.md
+/.gitignore
+
+/cmd
+/internal/di/di.go

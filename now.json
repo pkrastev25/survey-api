@@ -1,0 +1,13 @@
+ 
+{
+  "version": 2,
+  "public": false,
+  "builds": [
+    { "src": "/internal/api/auth/register/register.go", "use": "@now/go" },
+    { "src": "/internal/api/auth/login/login.go", "use": "@now/go" }
+  ],
+  "routes": [
+    { "src": "/register", "dest": "/internal/api/auth/register/register.go" },
+    { "src": "/login", "dest": "/internal/api/auth/login/login.go" }
+  ]
+}
