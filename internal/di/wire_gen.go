@@ -7,88 +7,76 @@ package di
 
 import (
 	"context"
-	"flag"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
-	"strings"
+	"survey-api/pkg/auth/handler"
 	"survey-api/pkg/logger"
 	"survey-api/pkg/mongodb"
+	"survey-api/pkg/user/repo"
 	"time"
 )
 
 // Injectors from di.go:
 
-func create() (*Dependencies, error) {
+func create() *Dependencies {
 	service := &logger.Service{}
-	client, err := createMongodbClient()
-	if err != nil {
-		return nil, err
-	}
-	mongodbService := mongodb.New(client, service)
-	diDependencies := packageDependencies(service, mongodbService)
-	return diDependencies, nil
+	client := createMongodbClient()
+	mongodbService := mongodb.New(client)
+	repoService := repo.New(mongodbService)
+	handlerService := handler.New(repoService)
+	diDependencies := packageDependencies(service, handlerService)
+	return diDependencies
 }
 
 // di.go:
 
 type Dependencies struct {
 	Logger      *logger.Service
-	MongoClient *mongodb.Service
+	AuthHandler *handler.Service
+}
+
+var dependencies *Dependencies
+
+func init() {
+	dependencies = create()
 }
 
 func Container() *Dependencies {
 	return dependencies
 }
 
-func MockContainer(c *Dependencies) {
-	if !isTestEnv() {
-		panic("You cannot mock dependencies during normal application execution! Use mocks only when testing!")
+func createMongodbClient() *mongo.Client {
+	host := os.Getenv("MONGODB_HOST")
+	if len(host) == 0 {
+		host = "localhost"
 	}
 
-	dependencies = c
-}
-
-var dependencies *Dependencies
-
-func init() {
-	if isTestEnv() {
-		return
+	port := os.Getenv("MONGODB_PORT")
+	if len(port) == 0 {
+		port = "27017"
 	}
 
-	var err error
-	dependencies, err = create()
+	url := "mongodb://" + host + ":" + port
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	clientOptions := options.Client().ApplyURI(url).SetAuth(options.Credential{
+		Username: os.Getenv("MONGODB_USER"),
+		Password: os.Getenv("MONGODB_PASSWORD"),
+	})
+	client, err := mongo.Connect(ctx, clientOptions)
+	defer cancel()
 	if err != nil {
 		panic(err)
 	}
+
+	return client
 }
 
-func isTestEnv() bool {
-	for _, arg := range os.Args {
-		if strings.HasPrefix(arg, "-test.v=") || strings.HasPrefix(arg, "/_test/") || strings.HasPrefix(arg, ".test") {
-			return true
-		}
+func packageDependencies(logger2 *logger.Service,
+	authHandler *handler.Service,
+) *Dependencies {
+	return &Dependencies{
+		Logger:      logger2,
+		AuthHandler: authHandler,
 	}
-
-	goEnv := os.Getenv("GO_ENV")
-	return flag.Lookup("test.v") != nil || goEnv == "test" || goEnv == "testing"
-}
-
-func createMongodbClient() (*mongo.Client, error) {
-	url := os.Getenv("MONGODB_URL")
-	if len(url) == 0 {
-		url = "mongodb://localhost:27017"
-	}
-
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(url))
-	if err != nil {
-		return nil, err
-	}
-
-	return client, nil
-}
-
-func packageDependencies(logger2 *logger.Service, mongoClient *mongodb.Service) *Dependencies {
-	return &Dependencies{Logger: logger2, MongoClient: mongoClient}
 }

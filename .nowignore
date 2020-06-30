@@ -3,4 +3,5 @@
 /.gitignore
 
 /cmd
+/dev
 /internal/di/di.go

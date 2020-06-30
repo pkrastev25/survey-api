@@ -31,8 +31,8 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Survey server is running on http://" + host + ":" + port))
 	})
-	http.HandleFunc("/register", register.Handler)
-	http.HandleFunc("/login", login.Handler)
+	http.HandleFunc("/register", register.Handler())
+	http.HandleFunc("/login", login.Handler())
 
 	err := http.ListenAndServe(host+":"+port, nil)
 	if err != nil {

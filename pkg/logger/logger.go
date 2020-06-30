@@ -11,5 +11,5 @@ func (s *Service) Log(msg string) {
 }
 
 func (s *Service) LogErr(err error) {
-	log.Fatalln(err)
+	log.Println(err)
 }
