@@ -3,7 +3,7 @@
 // The application is deployed as multiple serverless functions.
 // The hosting provider looks for function that comply with the
 // following signature:
-// (w http.ResponseWriter, r *http.Request)
+// func(http.ResponseWriter, *http.Request)
 //
 // For further deployment details, refer to now.json.
 // The file contains the routing definitions, which should be an
@@ -13,8 +13,8 @@ package main
 import (
 	"net/http"
 	"os"
-	"survey-api/internal/api/auth/login"
-	"survey-api/internal/api/auth/register"
+	"survey-api/pkg/auth/api/login"
+	"survey-api/pkg/auth/api/register"
 )
 
 func main() {

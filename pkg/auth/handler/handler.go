@@ -26,6 +26,7 @@ func (s *Service) Register(registerUser *model.RegisterUser) (*model.User, error
 	if err != nil {
 		return nil, err
 	}
+
 	user.Password = string(hashedPassword)
 	user, err = s.userRepo.InsertOne(user)
 	if err != nil {

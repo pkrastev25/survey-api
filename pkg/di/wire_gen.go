@@ -7,26 +7,31 @@ package di
 
 import (
 	"context"
+	"errors"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
 	"survey-api/pkg/auth/handler"
 	"survey-api/pkg/logger"
-	"survey-api/pkg/mongodb"
 	"survey-api/pkg/user/repo"
 	"time"
 )
 
 // Injectors from di.go:
 
-func create() *Dependencies {
+func create() (*Dependencies, error) {
 	service := &logger.Service{}
-	client := createMongodbClient()
-	mongodbService := mongodb.New(client)
-	repoService := repo.New(mongodbService)
+	client, err := createMongodbClient()
+	if err != nil {
+		return nil, err
+	}
+	repoService, err := repo.New(client)
+	if err != nil {
+		return nil, err
+	}
 	handlerService := handler.New(repoService)
 	diDependencies := packageDependencies(service, handlerService)
-	return diDependencies
+	return diDependencies, nil
 }
 
 // di.go:
@@ -39,14 +44,19 @@ type Dependencies struct {
 var dependencies *Dependencies
 
 func init() {
-	dependencies = create()
+	deps, err := create()
+	if err != nil {
+		panic(err)
+	}
+
+	dependencies = deps
 }
 
 func Container() *Dependencies {
 	return dependencies
 }
 
-func createMongodbClient() *mongo.Client {
+func createMongodbClient() (*mongo.Client, error) {
 	host := os.Getenv("MONGODB_HOST")
 	if len(host) == 0 {
 		host = "localhost"
@@ -57,19 +67,29 @@ func createMongodbClient() *mongo.Client {
 		port = "27017"
 	}
 
+	user := os.Getenv("MONGODB_USER")
+	if len(user) == 0 {
+		return nil, errors.New("MONGODB_USER is not set")
+	}
+
+	password := os.Getenv("MONGODB_PASSWORD")
+	if len(password) == 0 {
+		return nil, errors.New("MONGODB_PASSWORD is not set")
+	}
+
 	url := "mongodb://" + host + ":" + port
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	clientOptions := options.Client().ApplyURI(url).SetAuth(options.Credential{
-		Username: os.Getenv("MONGODB_USER"),
-		Password: os.Getenv("MONGODB_PASSWORD"),
+		Username: user,
+		Password: password,
 	})
 	client, err := mongo.Connect(ctx, clientOptions)
 	defer cancel()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return client
+	return client, nil
 }
 
 func packageDependencies(logger2 *logger.Service,
