@@ -41,6 +41,7 @@ type User struct {
 
 func (u *RegisterUser) ToUser() *User {
 	return &User{
+		Id:        primitive.NewObjectID(),
 		FirstName: u.FirstName,
 		UserName:  u.UserName,
 		Email:     u.Email,
@@ -51,7 +52,7 @@ func (u *RegisterUser) ToUser() *User {
 
 func (u *User) ToClientUser() *ClientUser {
 	return &ClientUser{
-		Id:        u.Id.String(),
+		Id:        u.Id.Hex(),
 		FirstName: u.FirstName,
 		UserName:  u.UserName,
 		AvatarUrl: u.AvatarUrl,

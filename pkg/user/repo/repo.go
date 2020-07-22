@@ -15,7 +15,7 @@ type Service struct {
 }
 
 func New(client *mongo.Client) (*Service, error) {
-	var repo = &Service{client: client}
+	repo := &Service{client: client}
 	err := repo.createUserIndexes()
 	if err != nil {
 		return nil, err
