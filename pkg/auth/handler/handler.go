@@ -3,31 +3,38 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"os"
-	"strings"
-	"survey-api/pkg/user/model"
-	"survey-api/pkg/user/repo"
-	"time"
+	"survey-api/pkg/auth/cookie"
+	authmodel "survey-api/pkg/auth/model"
+	authrepo "survey-api/pkg/auth/repo"
+	"survey-api/pkg/auth/token"
+	usermodel "survey-api/pkg/user/model"
+	userrepo "survey-api/pkg/user/repo"
 
-	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
 )
 
-const (
-	jwtTokenValidityMins = time.Minute * time.Duration(10)
-	jwtHeader            = "Authorization"
-	jwtHeaderValue       = "Bearer "
-)
-
 type Service struct {
-	userRepo *repo.Service
+	userRepo      *userrepo.Service
+	authRepo      *authrepo.Service
+	tokenService  *token.Service
+	cookieService *cookie.Service
 }
 
-func New(userRepo *repo.Service) *Service {
-	return &Service{userRepo: userRepo}
+func New(
+	userRepo *userrepo.Service,
+	authRepo *authrepo.Service,
+	tokenService *token.Service,
+	cookieService *cookie.Service,
+) *Service {
+	return &Service{
+		userRepo:      userRepo,
+		authRepo:      authRepo,
+		tokenService:  tokenService,
+		cookieService: cookieService,
+	}
 }
 
-func (s *Service) Register(registerUser *model.RegisterUser) (*model.User, error) {
+func (s *Service) Register(registerUser *usermodel.RegisterUser) (*usermodel.User, error) {
 	err := registerUser.Validate()
 	if err != nil {
 		return nil, err
@@ -48,13 +55,13 @@ func (s *Service) Register(registerUser *model.RegisterUser) (*model.User, error
 	return user, nil
 }
 
-func (s *Service) VerifyUserCredentials(loginUser *model.LoginUser) (*model.User, error) {
+func (s *Service) VerifyUserCredentials(loginUser *usermodel.LoginUser) (*usermodel.User, error) {
 	err := loginUser.Validate()
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := s.userRepo.FindOne(&model.User{UserName: loginUser.UserName})
+	user, err := s.userRepo.FindOne(&usermodel.User{UserName: loginUser.UserName})
 	if err != nil {
 		return nil, err
 	}
@@ -67,60 +74,58 @@ func (s *Service) VerifyUserCredentials(loginUser *model.LoginUser) (*model.User
 	return user, nil
 }
 
-func (s *Service) GenerateJwtToken(user *model.User) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
-		Subject:   user.Id.Hex(),
-		ExpiresAt: time.Now().Add(jwtTokenValidityMins).Unix(),
-	})
-	jwtKey := os.Getenv("JWT_KEY")
-	if len(jwtKey) == 0 {
-		return "", errors.New("JWT_KEY is not set")
+func (s *Service) AuthToken(r *http.Request) (string, error) {
+	token, err := s.tokenService.ParseJwtToken(r)
+	if err != nil {
+		return "", errors.New("Malformed token")
 	}
 
-	tokenString, err := token.SignedString([]byte(jwtKey))
+	userId, err := s.tokenService.ValidateJwtToken(token)
 	if err != nil {
 		return "", err
 	}
 
-	return tokenString, nil
+	return userId, nil
 }
 
-func (s *Service) RequireAuth(r *http.Request) (string, error) {
-	parsedToken := strings.Split(r.Header.Get(jwtHeader), jwtHeaderValue)
-	if len(parsedToken) != 2 {
-		return "", errors.New("Malformed token")
+func (s *Service) GenerateAuth(user *usermodel.User) (*http.Cookie, string, error) {
+	session := &authmodel.Session{
+		UserId: user.Id,
+	}
+	sessionOperation := func(session *authmodel.Session) (*authmodel.Session, error) {
+		return s.authRepo.InsertOne(session)
 	}
 
-	tokenString := strings.TrimSpace(parsedToken[1])
-	return s.ValidateJwtToken(tokenString)
+	return s.generateAuthPair(session, sessionOperation)
 }
 
-func (s *Service) ValidateJwtToken(tokenString string) (string, error) {
-	jwtKey := os.Getenv("JWT_KEY")
-	if len(jwtKey) == 0 {
-		return "", errors.New("JWT_KEY is not set")
+func (s *Service) RefreshAuth(session *authmodel.Session) (*http.Cookie, string, error) {
+	sessionOperation := func(session *authmodel.Session) (*authmodel.Session, error) {
+		return s.authRepo.ReplaceOne(session)
 	}
 
-	claims := &jwt.StandardClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		_, ok := token.Method.(*jwt.SigningMethodHMAC)
-		if !ok {
-			return nil, errors.New("Unexpected signing method: " + token.Method.Alg())
-		}
+	return s.generateAuthPair(session, sessionOperation)
+}
 
-		return []byte(jwtKey), nil
-	})
+func (s *Service) generateAuthPair(
+	session *authmodel.Session,
+	sessionOperation func(*authmodel.Session) (*authmodel.Session, error),
+) (*http.Cookie, string, error) {
+	token, err := s.tokenService.GenerateJwtToken(session.UserId.Hex())
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 
-	if !token.Valid {
-		return "", errors.New("Invalid token")
+	session.Token = token
+	session, err = sessionOperation(session)
+	if err != nil {
+		return nil, "", err
 	}
 
-	if len(claims.Subject) == 0 {
-		return "", errors.New("Malformed token")
+	cookie, err := s.cookieService.GenerateSessionCookie(session)
+	if err != nil {
+		return nil, "", err
 	}
 
-	return claims.Subject, nil
+	return cookie, token, nil
 }

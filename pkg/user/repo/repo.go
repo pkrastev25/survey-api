@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -33,6 +34,15 @@ func (s *Service) InsertOne(u *model.User) (*model.User, error) {
 	}
 
 	return u, nil
+}
+
+func (s *Service) FindById(userIdString string) (*model.User, error) {
+	userId, err := primitive.ObjectIDFromHex(userIdString)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.FindOne(&model.User{Id: userId})
 }
 
 func (s *Service) FindOne(userFilter *model.User) (*model.User, error) {

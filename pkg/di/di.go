@@ -6,9 +6,12 @@ import (
 	"context"
 	"errors"
 	"os"
+	"survey-api/pkg/auth/cookie"
 	"survey-api/pkg/auth/handler"
+	authrepo "survey-api/pkg/auth/repo"
+	"survey-api/pkg/auth/token"
 	"survey-api/pkg/logger"
-	"survey-api/pkg/user/repo"
+	userrepo "survey-api/pkg/user/repo"
 	"time"
 
 	"github.com/google/wire"
@@ -17,8 +20,12 @@ import (
 )
 
 type Dependencies struct {
-	Logger      *logger.Service
-	AuthHandler *handler.Service
+	Logger        *logger.Service
+	AuthHandler   *handler.Service
+	TokenService  *token.Service
+	CookieService *cookie.Service
+	AuthRepo      *authrepo.Service
+	UserRepo      *userrepo.Service
 }
 
 var dependencies *Dependencies
@@ -39,8 +46,11 @@ func Container() *Dependencies {
 func create() (*Dependencies, error) {
 	panic(wire.Build(
 		wire.Struct(new(logger.Service), "*"),
+		wire.Struct(new(token.Service), "*"),
+		wire.Struct(new(cookie.Service), "*"),
 		createMongodbClient,
-		repo.New,
+		userrepo.New,
+		authrepo.New,
 		handler.New,
 		packageDependencies,
 	))
@@ -85,9 +95,17 @@ func createMongodbClient() (*mongo.Client, error) {
 func packageDependencies(
 	logger *logger.Service,
 	authHandler *handler.Service,
+	tokenService *token.Service,
+	cookieService *cookie.Service,
+	authRepo *authrepo.Service,
+	userRepo *userrepo.Service,
 ) *Dependencies {
 	return &Dependencies{
-		Logger:      logger,
-		AuthHandler: authHandler,
+		Logger:        logger,
+		AuthHandler:   authHandler,
+		TokenService:  tokenService,
+		CookieService: cookieService,
+		AuthRepo:      authRepo,
+		UserRepo:      userRepo,
 	}
 }

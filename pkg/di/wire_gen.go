@@ -11,7 +11,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
+	"survey-api/pkg/auth/cookie"
 	"survey-api/pkg/auth/handler"
+	repo2 "survey-api/pkg/auth/repo"
+	"survey-api/pkg/auth/token"
 	"survey-api/pkg/logger"
 	"survey-api/pkg/user/repo"
 	"time"
@@ -29,16 +32,26 @@ func create() (*Dependencies, error) {
 	if err != nil {
 		return nil, err
 	}
-	handlerService := handler.New(repoService)
-	diDependencies := packageDependencies(service, handlerService)
+	service2, err := repo2.New(client)
+	if err != nil {
+		return nil, err
+	}
+	tokenService := &token.Service{}
+	cookieService := &cookie.Service{}
+	handlerService := handler.New(repoService, service2, tokenService, cookieService)
+	diDependencies := packageDependencies(service, handlerService, tokenService, cookieService, service2, repoService)
 	return diDependencies, nil
 }
 
 // di.go:
 
 type Dependencies struct {
-	Logger      *logger.Service
-	AuthHandler *handler.Service
+	Logger        *logger.Service
+	AuthHandler   *handler.Service
+	TokenService  *token.Service
+	CookieService *cookie.Service
+	AuthRepo      *repo2.Service
+	UserRepo      *repo.Service
 }
 
 var dependencies *Dependencies
@@ -94,9 +107,17 @@ func createMongodbClient() (*mongo.Client, error) {
 
 func packageDependencies(logger2 *logger.Service,
 	authHandler *handler.Service,
+	tokenService *token.Service,
+	cookieService *cookie.Service,
+	authRepo *repo2.Service,
+	userRepo *repo.Service,
 ) *Dependencies {
 	return &Dependencies{
-		Logger:      logger2,
-		AuthHandler: authHandler,
+		Logger:        logger2,
+		AuthHandler:   authHandler,
+		TokenService:  tokenService,
+		CookieService: cookieService,
+		AuthRepo:      authRepo,
+		UserRepo:      userRepo,
 	}
 }

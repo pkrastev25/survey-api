@@ -38,7 +38,7 @@ func Init(logger *logger.Service, authHandler *authhandler.Service) func(http.Re
 			return
 		}
 
-		token, err := authHandler.GenerateJwtToken(user)
+		cookie, token, err := authHandler.GenerateAuth(user)
 		if err != nil {
 			logger.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -56,6 +56,7 @@ func Init(logger *logger.Service, authHandler *authhandler.Service) func(http.Re
 			return
 		}
 
+		http.SetCookie(w, cookie)
 		w.WriteHeader(http.StatusOK)
 		w.Write(result)
 	}

@@ -31,12 +31,12 @@ type ClientUser struct {
 }
 
 type User struct {
-	Id        primitive.ObjectID `bson:"_id"`
-	FirstName string             `bson:"first_name"`
-	UserName  string             `bson:"user_name"`
-	Email     string             `bson:"email"`
-	Password  string             `bson:"password"`
-	AvatarUrl string             `bson:"avatar_url"`
+	Id        primitive.ObjectID `bson:"_id,omitempty"`
+	FirstName string             `bson:"first_name,omitempty"`
+	UserName  string             `bson:"user_name,omitempty"`
+	Email     string             `bson:"email,omitempty"`
+	Password  string             `bson:"password,omitempty"`
+	AvatarUrl string             `bson:"avatar_url,omitempty"`
 }
 
 func (u *RegisterUser) ToUser() *User {
