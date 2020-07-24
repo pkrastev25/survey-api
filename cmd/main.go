@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"os"
 	"survey-api/pkg/auth/api/login"
+	"survey-api/pkg/auth/api/logout"
+	"survey-api/pkg/auth/api/refresh"
 	"survey-api/pkg/auth/api/register"
 )
 
@@ -33,6 +35,8 @@ func main() {
 	})
 	http.HandleFunc("/register", register.Handler())
 	http.HandleFunc("/login", login.Handler())
+	http.HandleFunc("/logout", logout.Handler())
+	http.HandleFunc("/token/refresh", refresh.Handler())
 
 	err := http.ListenAndServe(host+":"+port, nil)
 	if err != nil {
