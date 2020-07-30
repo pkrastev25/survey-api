@@ -11,8 +11,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const (
-	sessionValiditySeconds = time.Hour * time.Duration(12)
+var (
+	sessionValiditySeconds = (time.Hour * time.Duration(12)).Seconds()
 )
 
 type Service struct {
@@ -31,7 +31,7 @@ func New(client *mongo.Client) (*Service, error) {
 
 func (s *Service) InsertOne(session *model.Session) (*model.Session, error) {
 	session.Id = primitive.NewObjectID()
-	session.LastModified = primitive.NewDateTimeFromTime(time.Now())
+	session.LastModified = primitive.NewDateTimeFromTime(time.Now().UTC())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	_, err := s.sessionCollection().InsertOne(ctx, session)
@@ -71,7 +71,7 @@ func (s *Service) FindOne(sessionFilter *model.Session) (*model.Session, error) 
 }
 
 func (s *Service) ReplaceOne(session *model.Session) (*model.Session, error) {
-	session.LastModified = primitive.NewDateTimeFromTime(time.Now())
+	session.LastModified = primitive.NewDateTimeFromTime(time.Now().UTC())
 	sessionFilter := &model.Session{Id: session.Id}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -105,7 +105,7 @@ func (s *Service) createUserIndexes() error {
 		{
 			Keys: bson.M{"last_modified": 1},
 			Options: options.Index().SetExpireAfterSeconds(
-				int32(sessionValiditySeconds.Seconds()),
+				int32(sessionValiditySeconds),
 			),
 		},
 		{
