@@ -1,5 +1,6 @@
 .vscode/
 .now
 *.env
+*bin
 
 /dev/db

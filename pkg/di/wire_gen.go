@@ -16,6 +16,8 @@ import (
 	repo2 "survey-api/pkg/auth/repo"
 	"survey-api/pkg/auth/token"
 	"survey-api/pkg/logger"
+	handler2 "survey-api/pkg/poll/handler"
+	repo3 "survey-api/pkg/poll/repo"
 	"survey-api/pkg/user/repo"
 	"time"
 )
@@ -39,7 +41,12 @@ func create() (*Dependencies, error) {
 	tokenService := &token.Service{}
 	cookieService := &cookie.Service{}
 	handlerService := handler.New(repoService, service2, tokenService, cookieService)
-	diDependencies := packageDependencies(service, handlerService, tokenService, cookieService, service2, repoService)
+	service3, err := repo3.New(client)
+	if err != nil {
+		return nil, err
+	}
+	service4 := handler2.New(service3)
+	diDependencies := packageDependencies(service, handlerService, tokenService, cookieService, service2, repoService, service3, service4)
 	return diDependencies, nil
 }
 
@@ -52,6 +59,8 @@ type Dependencies struct {
 	CookieService *cookie.Service
 	AuthRepo      *repo2.Service
 	UserRepo      *repo.Service
+	PollRepo      *repo3.Service
+	PollHandler   *handler2.Service
 }
 
 var dependencies *Dependencies
@@ -111,6 +120,8 @@ func packageDependencies(logger2 *logger.Service,
 	cookieService *cookie.Service,
 	authRepo *repo2.Service,
 	userRepo *repo.Service,
+	pollRepo *repo3.Service,
+	pollHandler *handler2.Service,
 ) *Dependencies {
 	return &Dependencies{
 		Logger:        logger2,
@@ -119,5 +130,7 @@ func packageDependencies(logger2 *logger.Service,
 		CookieService: cookieService,
 		AuthRepo:      authRepo,
 		UserRepo:      userRepo,
+		PollRepo:      pollRepo,
+		PollHandler:   pollHandler,
 	}
 }

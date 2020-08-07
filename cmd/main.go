@@ -17,6 +17,7 @@ import (
 	"survey-api/pkg/auth/api/logout"
 	"survey-api/pkg/auth/api/refresh"
 	"survey-api/pkg/auth/api/register"
+	pollapi "survey-api/pkg/poll/api"
 )
 
 func main() {
@@ -37,6 +38,7 @@ func main() {
 	http.HandleFunc("/login", login.Handler())
 	http.HandleFunc("/logout", logout.Handler())
 	http.HandleFunc("/token/refresh", refresh.Handler())
+	http.HandleFunc("/poll", pollapi.Handler())
 
 	err := http.ListenAndServe(host+":"+port, nil)
 	if err != nil {

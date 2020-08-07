@@ -11,6 +11,8 @@ import (
 	authrepo "survey-api/pkg/auth/repo"
 	"survey-api/pkg/auth/token"
 	"survey-api/pkg/logger"
+	pollhandler "survey-api/pkg/poll/handler"
+	pollrepo "survey-api/pkg/poll/repo"
 	userrepo "survey-api/pkg/user/repo"
 	"time"
 
@@ -26,6 +28,8 @@ type Dependencies struct {
 	CookieService *cookie.Service
 	AuthRepo      *authrepo.Service
 	UserRepo      *userrepo.Service
+	PollRepo      *pollrepo.Service
+	PollHandler   *pollhandler.Service
 }
 
 var dependencies *Dependencies
@@ -52,6 +56,8 @@ func create() (*Dependencies, error) {
 		userrepo.New,
 		authrepo.New,
 		handler.New,
+		pollrepo.New,
+		pollhandler.New,
 		packageDependencies,
 	))
 }
@@ -99,6 +105,8 @@ func packageDependencies(
 	cookieService *cookie.Service,
 	authRepo *authrepo.Service,
 	userRepo *userrepo.Service,
+	pollRepo *pollrepo.Service,
+	pollHandler *pollhandler.Service,
 ) *Dependencies {
 	return &Dependencies{
 		Logger:        logger,
@@ -107,5 +115,7 @@ func packageDependencies(
 		CookieService: cookieService,
 		AuthRepo:      authRepo,
 		UserRepo:      userRepo,
+		PollRepo:      pollRepo,
+		PollHandler:   pollHandler,
 	}
 }
