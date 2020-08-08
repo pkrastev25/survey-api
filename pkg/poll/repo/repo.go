@@ -28,8 +28,8 @@ func (s *Service) InsertOne(p *model.Poll) (*model.Poll, error) {
 	p.LastModified = primitive.NewDateTimeFromTime(time.Now().UTC())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	_, err := s.pollCollection().InsertOne(ctx, p)
 	defer cancel()
+	_, err := s.pollCollection().InsertOne(ctx, p)
 	if err != nil {
 		return nil, err
 	}
@@ -48,8 +48,8 @@ func (s *Service) FindById(pollIdString string) (*model.Poll, error) {
 
 func (s *Service) FindOne(pollFilter *model.Poll) (*model.Poll, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	result := s.pollCollection().FindOne(ctx, pollFilter)
 	defer cancel()
+	result := s.pollCollection().FindOne(ctx, pollFilter)
 	err := result.Err()
 	if err != nil {
 		return nil, err
@@ -64,10 +64,26 @@ func (s *Service) FindOne(pollFilter *model.Poll) (*model.Poll, error) {
 	return poll, nil
 }
 
+func (s *Service) UpdateOne(poll *model.Poll) (*model.Poll, error) {
+	poll.LastModified = primitive.NewDateTimeFromTime(time.Now())
+	pollFilter := &model.Poll{Id: poll.Id}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result := s.pollCollection().FindOneAndUpdate(ctx, pollFilter, bson.M{"$set": poll})
+	err := result.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return poll, nil
+}
+
 func (s *Service) DeleteOne(poll *model.Poll) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	_, err := s.pollCollection().DeleteOne(ctx, poll)
 	defer cancel()
+	result := s.pollCollection().FindOneAndDelete(ctx, poll)
+	err := result.Err()
 	if err != nil {
 		return err
 	}
@@ -88,8 +104,8 @@ func (s *Service) createPollIndexes() error {
 	}
 
 	context, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	_, err := collection.Indexes().CreateMany(context, indexes)
 	defer cancel()
+	_, err := collection.Indexes().CreateMany(context, indexes)
 	if err != nil {
 		return err
 	}

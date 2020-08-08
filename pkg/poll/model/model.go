@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strconv"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -68,7 +69,7 @@ func (p *CreatePoll) ToPoll(userId string) (*Poll, error) {
 	pollOptions := make([]PollOption, len(p.Options))
 
 	for index, item := range p.Options {
-		pollOptions[index] = *item.ToPollOption(string(index))
+		pollOptions[index] = *item.ToPollOption(strconv.Itoa(index))
 	}
 
 	poll := &Poll{
