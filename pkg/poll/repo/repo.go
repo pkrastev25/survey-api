@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Service struct {
@@ -64,14 +65,35 @@ func (s *Service) FindOne(pollFilter *model.Poll) (*model.Poll, error) {
 	return poll, nil
 }
 
+func (s *Service) AddVote(pollId primitive.ObjectID, userId primitive.ObjectID, pollOptionIndex string) (*model.Poll, error) {
+	updates := bson.M{
+		"$set":      bson.M{"last_modified": primitive.NewDateTimeFromTime(time.Now())},
+		"$inc":      bson.M{"options." + pollOptionIndex + ".count": 1},
+		"$addToSet": bson.M{"voter_ids": userId},
+	}
+
+	return s.updateOne(&model.Poll{Id: pollId}, updates)
+}
+
 func (s *Service) UpdateOne(poll *model.Poll) (*model.Poll, error) {
 	poll.LastModified = primitive.NewDateTimeFromTime(time.Now())
 	pollFilter := &model.Poll{Id: poll.Id}
 
+	return s.updateOne(pollFilter, bson.M{"$set": poll})
+}
+
+func (s *Service) updateOne(pollFilter *model.Poll, updates interface{}) (*model.Poll, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	result := s.pollCollection().FindOneAndUpdate(ctx, pollFilter, bson.M{"$set": poll})
+	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	result := s.pollCollection().FindOneAndUpdate(ctx, pollFilter, updates, options)
 	err := result.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	var poll *model.Poll
+	err = result.Decode(&poll)
 	if err != nil {
 		return nil, err
 	}

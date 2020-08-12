@@ -71,9 +71,7 @@ func (s *Service) AddPollVote(userIdString string, pollVote *model.PollVote) (*m
 		}
 	}
 
-	poll.VoterIds = append(poll.VoterIds, userId)
-	poll.Options[index].Count++
-	poll, err = s.pollRepo.UpdateOne(poll)
+	poll, err = s.pollRepo.AddVote(poll.Id, userId, pollVote.Index)
 	if err != nil {
 		return nil, err
 	}
