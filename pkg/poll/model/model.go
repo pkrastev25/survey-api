@@ -31,9 +31,9 @@ type Poll struct {
 }
 
 type PollOption struct {
-	Index   string `bson:"index,omitempty",		json:"index"`
-	Content string `bson:"content,omitempty",	json:"content"`
-	Count   int    `bson:"count,omitempty",		json:"count"`
+	Index   string `bson:"index,omitempty",json:"index"`
+	Content string `bson:"content,omitempty",json:"content"`
+	Count   int    `bson:"count,omitempty",json:"count"`
 }
 
 type CreatePoll struct {

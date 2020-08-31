@@ -8,6 +8,7 @@ import (
 	"survey-api/pkg/logger"
 	pollhandler "survey-api/pkg/poll/handler"
 	"survey-api/pkg/poll/model"
+	"survey-api/pkg/poll/pagination"
 )
 
 const (
@@ -39,6 +40,8 @@ func Init(
 		switch r.Method {
 		case http.MethodPost:
 			handlePost(w, r, userId, deps)
+		case http.MethodGet:
+			handleGet(w, r, userId, deps)
 		case http.MethodDelete:
 			handleDelete(w, r, userId, deps)
 		default:
@@ -67,6 +70,31 @@ func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *dep
 	if err != nil {
 		deps.logger.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(result)
+}
+
+func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *dependencies) {
+	pollsQuery, err := pagination.New(r.URL.Query())
+	if err != nil {
+		return
+	}
+
+	polls, err := deps.pollHandler.GetPollsForQuery(pollsQuery)
+	if err != nil {
+		return
+	}
+
+	pollClients := make([]model.PollClient, len(polls))
+	for index := range polls {
+		pollClients[index] = *polls[index].ToPollClient()
+	}
+
+	result, err := json.Marshal(pollClients)
+	if err != nil {
 		return
 	}
 

@@ -65,6 +65,25 @@ func (s *Service) FindOne(pollFilter *model.Poll) (*model.Poll, error) {
 	return poll, nil
 }
 
+func (s *Service) FindMany() (*[]model.Poll, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, err := s.pollCollection().Find(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	var polls *[]model.Poll
+	err = result.All(ctx, &polls)
+	if err != nil {
+		return nil, err
+	}
+
+	return polls, nil
+}
+
 func (s *Service) AddVote(pollId primitive.ObjectID, userId primitive.ObjectID, pollOptionIndex string) (*model.Poll, error) {
 	updates := bson.M{
 		"$set":      bson.M{"last_modified": primitive.NewDateTimeFromTime(time.Now())},

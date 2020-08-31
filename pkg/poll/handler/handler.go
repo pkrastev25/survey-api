@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strconv"
 	"survey-api/pkg/poll/model"
+	"survey-api/pkg/poll/pagination"
 	"survey-api/pkg/poll/repo"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -34,6 +35,29 @@ func (s *Service) CreatePoll(userId string, createPoll *model.CreatePoll) (*mode
 	}
 
 	return poll, err
+}
+
+func (s *Service) GetPollsForQuery(query *pagination.PollsQuery) ([]model.Poll, error) {
+	var result []model.Poll
+
+	if len(query.ID) > 0 {
+		poll, err := s.pollRepo.FindById(query.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		return append(result, *poll), nil
+	}
+
+	if !query.Next.IsZero() {
+
+	}
+
+	if !query.Prev.IsZero() {
+
+	}
+
+	return result, nil
 }
 
 func (s *Service) AddPollVote(userIdString string, pollVote *model.PollVote) (*model.Poll, error) {
