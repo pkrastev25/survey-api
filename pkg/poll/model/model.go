@@ -2,6 +2,7 @@ package model
 
 import (
 	"strconv"
+	"survey-api/pkg/dtime"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -10,10 +11,6 @@ import (
 
 const (
 	Public PollVisibility = "public"
-)
-
-var (
-	nilDateTime = primitive.DateTime(0)
 )
 
 type PollVisibility string
@@ -78,7 +75,7 @@ func (p *CreatePoll) ToPoll(userId string) (*Poll, error) {
 		Content:    p.Content,
 		Options:    pollOptions,
 		Visibility: p.Visibility,
-		Created:    primitive.NewDateTimeFromTime(time.Now().UTC()),
+		Created:    primitive.NewDateTimeFromTime(time.Now()),
 	}
 
 	return poll, nil
@@ -98,8 +95,8 @@ func (p *Poll) ToPollClient() *PollClient {
 		Content:      p.Content,
 		Options:      p.Options,
 		Participants: len(p.VoterIds),
-		Created:      p.Created.Time().String(),
-		Closed:       convertDateTimeToString(p.Closed),
+		Created:      p.Created.Time().Format(dtime.ISOFormat),
+		Closed:       dtime.ConvertDateTimeToString(p.Closed),
 	}
 }
 
@@ -122,12 +119,4 @@ func (pv PollVote) Validate() error {
 		validation.Field(&pv.PollId, validation.Required),
 		validation.Field(&pv.Index, validation.Required),
 	)
-}
-
-func convertDateTimeToString(dt primitive.DateTime) string {
-	if nilDateTime.Time().Equal(dt.Time()) {
-		return ""
-	}
-
-	return dt.Time().UTC().String()
 }

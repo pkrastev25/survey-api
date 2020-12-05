@@ -1,9 +1,16 @@
 package pagination
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
 	"net/url"
 	"strconv"
-	"time"
+	"survey-api/pkg/db/pipeline"
+	"survey-api/pkg/poll/model"
+	paginationmodel "survey-api/pkg/poll/pagination/model"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 const (
@@ -11,40 +18,29 @@ const (
 	maxLimit     = 100
 )
 
-type PollsQuery struct {
-	ID    string
-	Next  time.Time
-	Prev  time.Time
+type Metadata struct {
+	Where *paginationmodel.Query
 	Limit int
 }
 
-func New(query url.Values) (*PollsQuery, error) {
-	idString := query.Get("id")
-	nextString := query.Get("next")
-	prevString := query.Get("prev")
+func New(query url.Values) (*Metadata, error) {
+	whereString := query.Get("where")
 	limitString := query.Get("limit")
-	pollsQuery := &PollsQuery{}
+	metadata := &Metadata{}
 
-	if len(idString) > 0 {
-		pollsQuery.ID = idString
-	}
-
-	if len(nextString) > 0 {
-		next, err := time.Parse(time.Now().UTC().String(), nextString)
+	if len(whereString) > 0 {
+		where, err := base64.URLEncoding.DecodeString(whereString)
 		if err != nil {
 			return nil, err
 		}
 
-		pollsQuery.Next = next
-	}
-
-	if len(prevString) > 0 {
-		prev, err := time.Parse(time.Now().UTC().String(), prevString)
+		var query *paginationmodel.Query
+		err = json.Unmarshal(where, &query)
 		if err != nil {
 			return nil, err
 		}
 
-		pollsQuery.Prev = prev
+		metadata.Where = query
 	}
 
 	if len(limitString) > 0 {
@@ -54,15 +50,83 @@ func New(query url.Values) (*PollsQuery, error) {
 		}
 
 		if limit <= 0 {
-			pollsQuery.Limit = defaultLimit
+			metadata.Limit = defaultLimit
 		} else if limit > maxLimit {
-			pollsQuery.Limit = maxLimit
+			metadata.Limit = maxLimit
 		} else {
-			pollsQuery.Limit = limit
+			metadata.Limit = limit
 		}
 	} else {
-		pollsQuery.Limit = defaultLimit
+		metadata.Limit = defaultLimit
 	}
 
-	return pollsQuery, nil
+	return metadata, nil
+}
+
+func (metadata *Metadata) ToDbPagination() bson.M {
+	if metadata.Where == nil {
+		return bson.M{"next": bson.M{string(pipeline.Limit): metadata.Limit + 1}}
+	}
+
+	next, prev := metadata.Where.ToDbQuery()
+	next = append(next, bson.M{string(pipeline.Limit): metadata.Limit + 1})
+	prev = append(prev, bson.M{string(pipeline.Limit): 1})
+	return bson.M{"next": next, "prev": prev}
+}
+
+func (metadata *Metadata) CreateLinkHeader(r *http.Request, pagination map[string][]model.Poll) (string, error) {
+	linkHeader := ""
+
+	if metadata == nil {
+		return linkHeader, nil
+	}
+
+	navigation := make(map[string]*Metadata)
+	nextResult, exists := pagination["next"]
+	if exists {
+		if len(nextResult) > metadata.Limit {
+			navigation["next"] = metadata.NewFromPoll(&nextResult[len(nextResult)-1])
+		}
+	}
+
+	prevResult, exists := pagination["prev"]
+	if exists {
+		if len(prevResult) > 0 {
+			navigation["prev"] = metadata.NewFromPoll(&prevResult[0])
+		}
+	}
+
+	if len(navigation) == 0 {
+		return linkHeader, nil
+	}
+
+	url := r.Host
+
+	for key, metadata := range navigation {
+		where, err := json.Marshal(metadata.Where)
+		if err != nil {
+			return "", err
+		}
+
+		linkHeader += "<" + url + "?limit=" + strconv.Itoa(metadata.Limit) + "?where=" + base64.StdEncoding.EncodeToString(where) + ">; rel=" + key + ", "
+	}
+
+	return linkHeader, nil
+}
+
+func (metadata *Metadata) NewFromPoll(poll *model.Poll) *Metadata {
+	newMetadata := &Metadata{
+		Where: metadata.Where.NewFromPoll(poll),
+		Limit: metadata.Limit,
+	}
+
+	return newMetadata
+}
+
+func SetLinkHeader(w http.ResponseWriter, linkHeader string) {
+	if len(linkHeader) == 0 {
+		return
+	}
+
+	w.Header().Add("link", linkHeader)
 }

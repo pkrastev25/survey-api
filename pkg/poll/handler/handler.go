@@ -37,27 +37,16 @@ func (s *Service) CreatePoll(userId string, createPoll *model.CreatePoll) (*mode
 	return poll, err
 }
 
-func (s *Service) GetPollsForQuery(query *pagination.PollsQuery) ([]model.Poll, error) {
-	var result []model.Poll
-
-	if len(query.ID) > 0 {
-		poll, err := s.pollRepo.FindById(query.ID)
+func (s *Service) PaginatePolls(metadata *pagination.Metadata) ([]model.Poll, error) {
+	if metadata.Where != nil {
+		err := metadata.Where.Validate()
 		if err != nil {
 			return nil, err
 		}
-
-		return append(result, *poll), nil
 	}
 
-	if !query.Next.IsZero() {
+	return make([]model.Poll, 0), nil
 
-	}
-
-	if !query.Prev.IsZero() {
-
-	}
-
-	return result, nil
 }
 
 func (s *Service) AddPollVote(userIdString string, pollVote *model.PollVote) (*model.Poll, error) {

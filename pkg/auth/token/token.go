@@ -40,7 +40,7 @@ func (s *Service) ParseJwtToken(r *http.Request) (string, error) {
 func (s *Service) GenerateJwtToken(userId string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
 		Subject:   userId,
-		ExpiresAt: time.Now().Add(jwtTokenValidityMins).UTC().Unix(),
+		ExpiresAt: time.Now().Add(jwtTokenValidityMins).Unix(),
 	})
 	jwtKey := os.Getenv("JWT_KEY")
 	if len(jwtKey) == 0 {

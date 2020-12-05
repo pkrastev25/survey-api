@@ -11,10 +11,6 @@ import (
 	"survey-api/pkg/poll/pagination"
 )
 
-const (
-	queryId = "id"
-)
-
 type dependencies struct {
 	logger      *logger.Service
 	authHandler *authhandler.Service
@@ -78,13 +74,17 @@ func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *dep
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *dependencies) {
-	pollsQuery, err := pagination.New(r.URL.Query())
+	pollsPaginationQuery, err := pagination.New(r.URL.Query())
 	if err != nil {
+		deps.logger.LogErr(err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	polls, err := deps.pollHandler.GetPollsForQuery(pollsQuery)
+	polls, err := deps.pollHandler.PaginatePolls(pollsPaginationQuery)
 	if err != nil {
+		deps.logger.LogErr(err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -95,6 +95,8 @@ func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *depe
 
 	result, err := json.Marshal(pollClients)
 	if err != nil {
+		deps.logger.LogErr(err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -103,7 +105,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *depe
 }
 
 func handleDelete(w http.ResponseWriter, r *http.Request, userId string, deps *dependencies) {
-	pollId := r.URL.Query().Get(queryId)
+	pollId := r.URL.Query().Get("id")
 	if len(pollId) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		return

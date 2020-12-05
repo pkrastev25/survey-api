@@ -31,7 +31,7 @@ func New(client *mongo.Client) (*Service, error) {
 
 func (s *Service) InsertOne(session *model.Session) (*model.Session, error) {
 	session.Id = primitive.NewObjectID()
-	session.LastModified = primitive.NewDateTimeFromTime(time.Now().UTC())
+	session.LastModified = primitive.NewDateTimeFromTime(time.Now())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	_, err := s.sessionCollection().InsertOne(ctx, session)
@@ -71,7 +71,7 @@ func (s *Service) FindOne(sessionFilter *model.Session) (*model.Session, error) 
 }
 
 func (s *Service) ReplaceOne(session *model.Session) (*model.Session, error) {
-	session.LastModified = primitive.NewDateTimeFromTime(time.Now().UTC())
+	session.LastModified = primitive.NewDateTimeFromTime(time.Now())
 	sessionFilter := &model.Session{Id: session.Id}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

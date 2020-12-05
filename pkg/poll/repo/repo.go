@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	dbpipeline "survey-api/pkg/db/pipeline"
 	"survey-api/pkg/poll/model"
 	"time"
 
@@ -26,7 +27,7 @@ func New(client *mongo.Client) (*Service, error) {
 }
 
 func (s *Service) InsertOne(p *model.Poll) (*model.Poll, error) {
-	p.LastModified = primitive.NewDateTimeFromTime(time.Now().UTC())
+	p.LastModified = primitive.NewDateTimeFromTime(time.Now())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -65,23 +66,23 @@ func (s *Service) FindOne(pollFilter *model.Poll) (*model.Poll, error) {
 	return poll, nil
 }
 
-func (s *Service) FindMany() (*[]model.Poll, error) {
+func (s *Service) PaginateQuery(pipeline *dbpipeline.Builder) ([]map[string][]model.Poll, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	result, err := s.pollCollection().Find(ctx, nil)
+	cursor, err := s.pollCollection().Aggregate(ctx, pipeline.Build())
 	if err != nil {
 		return nil, err
 	}
 
+	var result []map[string][]model.Poll
 	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	var polls *[]model.Poll
-	err = result.All(ctx, &polls)
+	err = cursor.All(ctx, &result)
 	if err != nil {
 		return nil, err
 	}
 
-	return polls, nil
+	return result, nil
 }
 
 func (s *Service) AddVote(pollId primitive.ObjectID, userId primitive.ObjectID, pollOptionIndex string) (*model.Poll, error) {

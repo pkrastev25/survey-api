@@ -11,6 +11,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"survey-api/pkg/auth/api/login"
@@ -32,9 +33,6 @@ func main() {
 		port = "3000"
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Survey server is running on http://" + host + ":" + port))
-	})
 	http.HandleFunc("/register", register.Handler())
 	http.HandleFunc("/login", login.Handler())
 	http.HandleFunc("/logout", logout.Handler())
@@ -46,4 +44,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	log.Println("Survey server is running on http://" + host + ":" + port)
 }

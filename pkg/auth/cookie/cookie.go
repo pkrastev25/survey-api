@@ -45,7 +45,7 @@ func (s *Service) GenerateSessionCookie(session *sessionmodel.Session) (*http.Co
 		return nil, err
 	}
 
-	maxAge := int(time.Now().Add(cookieValidityHours).UTC().Unix())
+	maxAge := int(time.Now().Add(cookieValidityHours).Unix())
 	cookie := s.generateCookie(encodedValue, maxAge)
 	return cookie, nil
 }
