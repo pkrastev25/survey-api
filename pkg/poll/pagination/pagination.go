@@ -1,130 +1,170 @@
 package pagination
 
 import (
-	"encoding/base64"
-	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
-	"survey-api/pkg/db/pipeline"
-	"survey-api/pkg/poll/model"
+	"strings"
 	paginationmodel "survey-api/pkg/poll/pagination/model"
-
-	"go.mongodb.org/mongo-driver/bson"
 )
 
-const (
-	defaultLimit = 20
-	maxLimit     = 100
-)
-
-type Metadata struct {
-	Where *paginationmodel.Query
-	Limit int
-}
-
-func New(query url.Values) (*Metadata, error) {
-	whereString := query.Get("where")
-	limitString := query.Get("limit")
-	metadata := &Metadata{}
-
-	if len(whereString) > 0 {
-		where, err := base64.URLEncoding.DecodeString(whereString)
-		if err != nil {
-			return nil, err
-		}
-
-		var query *paginationmodel.Query
-		err = json.Unmarshal(where, &query)
-		if err != nil {
-			return nil, err
-		}
-
-		metadata.Where = query
-	}
+func ParseQuery(urlQuery url.Values) (paginationmodel.Query, error) {
+	searchString := urlQuery.Get("search")
+	paginateString := urlQuery.Get("paginate")
+	sortString := urlQuery.Get("sort")
+	limitString := urlQuery.Get("limit")
+	query := paginationmodel.NewQuery()
 
 	if len(limitString) > 0 {
 		limit, err := strconv.Atoi(limitString)
 		if err != nil {
-			return nil, err
+			return query, err
 		}
 
-		if limit <= 0 {
-			metadata.Limit = defaultLimit
-		} else if limit > maxLimit {
-			metadata.Limit = maxLimit
-		} else {
-			metadata.Limit = limit
-		}
-	} else {
-		metadata.Limit = defaultLimit
+		query.SetLimit(limit)
 	}
 
-	return metadata, nil
-}
-
-func (metadata *Metadata) ToDbPagination() bson.M {
-	if metadata.Where == nil {
-		return bson.M{"next": bson.M{string(pipeline.Limit): metadata.Limit + 1}}
+	if len(searchString) > 0 {
+		query.SetSearch(searchString)
 	}
 
-	next, prev := metadata.Where.ToDbQuery()
-	next = append(next, bson.M{string(pipeline.Limit): metadata.Limit + 1})
-	prev = append(prev, bson.M{string(pipeline.Limit): 1})
-	return bson.M{"next": next, "prev": prev}
-}
-
-func (metadata *Metadata) CreateLinkHeader(r *http.Request, pagination map[string][]model.Poll) (string, error) {
-	linkHeader := ""
-
-	if metadata == nil {
-		return linkHeader, nil
-	}
-
-	navigation := make(map[string]*Metadata)
-	nextResult, exists := pagination["next"]
-	if exists {
-		if len(nextResult) > metadata.Limit {
-			navigation["next"] = metadata.NewFromPoll(&nextResult[len(nextResult)-1])
-		}
-	}
-
-	prevResult, exists := pagination["prev"]
-	if exists {
-		if len(prevResult) > 0 {
-			navigation["prev"] = metadata.NewFromPoll(&prevResult[0])
-		}
-	}
-
-	if len(navigation) == 0 {
-		return linkHeader, nil
-	}
-
-	url := r.Host
-
-	for key, metadata := range navigation {
-		where, err := json.Marshal(metadata.Where)
+	if len(paginateString) > 0 {
+		paginate, err := parsePaginateQuery(paginateString)
 		if err != nil {
-			return "", err
+			return query, err
 		}
 
-		linkHeader += "<" + url + "?limit=" + strconv.Itoa(metadata.Limit) + "?where=" + base64.StdEncoding.EncodeToString(where) + ">; rel=" + key + ", "
+		query.SetPaginate(paginate)
+		if len(sortString) <= 0 {
+			sort, err := paginationmodel.NewSortPaginate(paginate)
+			if err != nil {
+				return query, err
+			}
+
+			query.SetSort(sort)
+		}
 	}
 
-	return linkHeader, nil
+	if len(sortString) > 0 {
+		sort, err := parseSortQuery(sortString)
+		if err != nil {
+			return query, err
+		}
+
+		query.SetSort(sort)
+	}
+
+	return query, nil
 }
 
-func (metadata *Metadata) NewFromPoll(poll *model.Poll) *Metadata {
-	newMetadata := &Metadata{
-		Where: metadata.Where.NewFromPoll(poll),
-		Limit: metadata.Limit,
+func parsePaginateQuery(query string) (paginationmodel.Paginate, error) {
+	var paginate paginationmodel.Paginate
+	values := strings.Split(query, ",")
+	if len(values) < 3 {
+		return paginate, errors.New("")
 	}
 
-	return newMetadata
+	if len(values) > 3 {
+		return paginate, errors.New("")
+	}
+
+	paginate, err := paginationmodel.NewPaginateAll(values[0], values[1], values[2])
+	if err != nil {
+		return paginate, err
+	}
+
+	return paginate, nil
+}
+
+func parseSortQuery(query string) (paginationmodel.Sort, error) {
+	var sort paginationmodel.Sort
+	values := strings.Split(query, ",")
+	if len(values) < 2 {
+		return sort, errors.New("")
+	}
+
+	if len(values) > 2 {
+		return sort, errors.New("")
+	}
+
+	sort, err := paginationmodel.NewSortAll(values[0], values[1])
+	if err != nil {
+		return sort, err
+	}
+
+	return sort, nil
+}
+
+func paginateQueryString(paginate paginationmodel.Paginate) string {
+	values := []string{string(paginate.Property()), string(paginate.Operation()), paginate.Value()}
+	return "paginate=" + strings.Join(values, ",")
+}
+
+func sortQueryString(sort paginationmodel.Sort) string {
+	values := []string{string(sort.Property()), string(sort.Order())}
+	return "sort=" + strings.Join(values, ",")
+}
+
+func limitQueryString(limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+
+	return "limit=" + strconv.Itoa(limit)
+}
+
+func searchQueryString(search string) string {
+	if len(search) <= 0 {
+		return ""
+	}
+
+	return "search=" + search
+}
+
+func CreateLinkHeader(r *http.Request, pagination map[string]paginationmodel.Query) (string, error) {
+	var linkHeader string
+	if len(pagination) <= 0 {
+		return linkHeader, nil
+	}
+
+	protocol := "https://"
+	if r.Proto == "HTTP/1.1" {
+		protocol = "http://"
+	}
+
+	var linkHeaderParts []string
+	url := protocol + r.Host + r.URL.Path
+	for navigation, metadata := range pagination {
+		var queries []string
+		paginate := paginateQueryString(metadata.Paginate())
+		if len(paginate) > 0 {
+			queries = append(queries, paginate)
+		}
+
+		search := searchQueryString(metadata.Search())
+		if len(search) > 0 {
+			queries = append(queries, search)
+		}
+
+		sort := sortQueryString(metadata.Sort())
+		if len(sort) > 0 {
+			queries = append(queries, sort)
+		}
+
+		limit := limitQueryString(metadata.Limit())
+		if len(limit) > 0 {
+			queries = append(queries, limit)
+		}
+
+		linkHeaderParts = append(linkHeaderParts, "<"+url+"?"+strings.Join(queries, "&")+">; rel="+navigation)
+	}
+
+	return strings.Join(linkHeaderParts, ","), nil
 }
 
 func SetLinkHeader(w http.ResponseWriter, linkHeader string) {
-	if len(linkHeader) == 0 {
+	if len(linkHeader) <= 0 {
 		return
 	}
 

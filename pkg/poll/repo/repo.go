@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	dbpipeline "survey-api/pkg/db/pipeline"
+	"survey-api/pkg/dtime"
 	"survey-api/pkg/poll/model"
 	"time"
 
@@ -27,7 +28,7 @@ func New(client *mongo.Client) (*Service, error) {
 }
 
 func (s *Service) InsertOne(p *model.Poll) (*model.Poll, error) {
-	p.LastModified = primitive.NewDateTimeFromTime(time.Now())
+	p.LastModified = dtime.DateTimeNow()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -66,7 +67,7 @@ func (s *Service) FindOne(pollFilter *model.Poll) (*model.Poll, error) {
 	return poll, nil
 }
 
-func (s *Service) PaginateQuery(pipeline *dbpipeline.Builder) ([]map[string][]model.Poll, error) {
+func (s *Service) PaginateQuery(pipeline dbpipeline.Builder) ([]map[string][]model.Poll, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	cursor, err := s.pollCollection().Aggregate(ctx, pipeline.Build())
@@ -87,7 +88,7 @@ func (s *Service) PaginateQuery(pipeline *dbpipeline.Builder) ([]map[string][]mo
 
 func (s *Service) AddVote(pollId primitive.ObjectID, userId primitive.ObjectID, pollOptionIndex string) (*model.Poll, error) {
 	updates := bson.M{
-		"$set":      bson.M{"last_modified": primitive.NewDateTimeFromTime(time.Now())},
+		"$set":      bson.M{"last_modified": primitive.NewDateTimeFromTime(time.Now().UTC())},
 		"$inc":      bson.M{"options." + pollOptionIndex + ".count": 1},
 		"$addToSet": bson.M{"voter_ids": userId},
 	}
@@ -96,7 +97,7 @@ func (s *Service) AddVote(pollId primitive.ObjectID, userId primitive.ObjectID, 
 }
 
 func (s *Service) UpdateOne(poll *model.Poll) (*model.Poll, error) {
-	poll.LastModified = primitive.NewDateTimeFromTime(time.Now())
+	poll.LastModified = primitive.NewDateTimeFromTime(time.Now().UTC())
 	pollFilter := &model.Poll{Id: poll.Id}
 
 	return s.updateOne(pollFilter, bson.M{"$set": poll})

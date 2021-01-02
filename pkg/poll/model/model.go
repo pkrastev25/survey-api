@@ -3,7 +3,6 @@ package model
 import (
 	"strconv"
 	"survey-api/pkg/dtime"
-	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -75,7 +74,7 @@ func (p *CreatePoll) ToPoll(userId string) (*Poll, error) {
 		Content:    p.Content,
 		Options:    pollOptions,
 		Visibility: p.Visibility,
-		Created:    primitive.NewDateTimeFromTime(time.Now()),
+		Created:    dtime.DateTimeNow(),
 	}
 
 	return poll, nil
@@ -95,8 +94,8 @@ func (p *Poll) ToPollClient() *PollClient {
 		Content:      p.Content,
 		Options:      p.Options,
 		Participants: len(p.VoterIds),
-		Created:      p.Created.Time().Format(dtime.ISOFormat),
-		Closed:       dtime.ConvertDateTimeToString(p.Closed),
+		Created:      dtime.DateTimeToISO(p.Created),
+		Closed:       dtime.DateTimeToISO(p.Closed),
 	}
 }
 

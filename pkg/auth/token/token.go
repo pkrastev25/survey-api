@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"survey-api/pkg/dtime"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -40,7 +41,7 @@ func (s *Service) ParseJwtToken(r *http.Request) (string, error) {
 func (s *Service) GenerateJwtToken(userId string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
 		Subject:   userId,
-		ExpiresAt: time.Now().Add(jwtTokenValidityMins).Unix(),
+		ExpiresAt: dtime.TimeNow().Add(jwtTokenValidityMins).Unix(),
 	})
 	jwtKey := os.Getenv("JWT_KEY")
 	if len(jwtKey) == 0 {

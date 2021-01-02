@@ -2,51 +2,90 @@ package pipeline
 
 import (
 	"errors"
+	dbmodel "survey-api/pkg/db/model"
 	"survey-api/pkg/poll/model"
-	"survey-api/pkg/poll/pagination"
+	paginationmodel "survey-api/pkg/poll/pagination/model"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
-
-const (
-	GreaterThan Operation = "$gte"
-	LessThan    Operation = "$lt"
-	Limit       Operation = "$limit"
-	Facet       Operation = "$facet"
-	Match       Operation = "$match"
-)
-
-type Operation string
 
 type Builder struct {
 	pipeline []bson.M
 }
 
-func New() *Builder {
-	return &Builder{
+func New() Builder {
+	return Builder{
 		pipeline: []bson.M{},
 	}
 }
 
-func (builder *Builder) Pagination(metadata *pagination.Metadata) *Builder {
-	facet := bson.M{string(Facet): metadata.ToDbPagination()}
-	builder.pipeline = append(builder.pipeline, facet)
-
-	return builder
+func (builder Builder) Build() []bson.M {
+	return builder.pipeline
 }
 
-func CreateLimitCondition(limit int) bson.M {
-	return bson.M{string(Limit): limit}
-}
-
-func (builder *Builder) ParsePagination(pipelineResult []map[string][]model.Poll) (map[string][]model.Poll, error) {
-	if len(pipelineResult) <= 0 {
-		return nil, errors.New("")
+func (builder Builder) Pagination(query paginationmodel.Query) (Builder, error) {
+	textSearch := builder.toTextSearch(query.Search())
+	if len(textSearch) > 0 {
+		builder.pipeline = append(builder.pipeline, textSearch)
 	}
 
-	return pipelineResult[0], nil
+	paginate := query.Paginate()
+	reversedPaginate, err := builder.reversePaginate(paginate)
+	if err != nil {
+		return builder, err
+	}
+
+	facetStages := bson.M{}
+	queryDB, err := builder.toQueryDB(paginate, query.Sort(), query.Limit()+1)
+	if err != nil {
+		return builder, err
+	}
+
+	facetStages[string(paginate.Direction())] = queryDB
+	reversedSort, err := builder.reverseSort(query.Sort())
+	if err != nil {
+		return builder, err
+	}
+
+	reversedQueryDB, err := builder.toQueryDB(reversedPaginate, reversedSort, 1)
+	if err != nil {
+		return builder, err
+	}
+
+	facetStages[string(reversedPaginate.Direction())] = reversedQueryDB
+	builder.pipeline = append(builder.pipeline, bson.M{string(dbmodel.Facet): facetStages})
+	return builder, nil
 }
 
-func (builder *Builder) Build() interface{} {
-	return builder.pipeline
+func (builder Builder) ParsePagination(query paginationmodel.Query, paginationPipelineResult []map[string][]model.Poll) ([]model.Poll, map[string]paginationmodel.Query, error) {
+	var resultForClient []model.Poll
+	paginationQueries := make(map[string]paginationmodel.Query)
+	if len(paginationPipelineResult) <= 0 {
+		return nil, nil, errors.New("")
+	}
+
+	paginationResult := paginationPipelineResult[0]
+
+	paginate := query.Paginate()
+	queryResult := paginationResult[string(paginate.Direction())]
+	if len(queryResult) == query.Limit()+1 {
+		paginationQueries[string(paginate.Direction())] = query.ClonePaginate(builder.generatePaginate(paginate, paginate.Operation(), queryResult[len(queryResult)-1]))
+		resultForClient = queryResult[:len(queryResult)-1]
+	} else {
+		resultForClient = queryResult
+	}
+
+	reversePaginate, err := builder.reversePaginate(query.Paginate())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	reverseQueryResult := paginationResult[string(reversePaginate.Direction())]
+	if len(reverseQueryResult) > 0 {
+		generatedPaginate := builder.generatePaginate(reversePaginate, reversePaginate.Operation(), reverseQueryResult[0])
+		generatedSort := builder.generateSort(query.Sort(), generatedPaginate.Direction())
+		paginationQueries[string(reversePaginate.Direction())] = query.ClonePaginate(generatedPaginate).CloneSort(generatedSort)
+	}
+
+	return resultForClient, paginationQueries, nil
 }

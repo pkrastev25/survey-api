@@ -3,8 +3,9 @@ package handler
 import (
 	"errors"
 	"strconv"
+	"survey-api/pkg/db/pipeline"
 	"survey-api/pkg/poll/model"
-	"survey-api/pkg/poll/pagination"
+	paginationmodel "survey-api/pkg/poll/pagination/model"
 	"survey-api/pkg/poll/repo"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -37,16 +38,23 @@ func (s *Service) CreatePoll(userId string, createPoll *model.CreatePoll) (*mode
 	return poll, err
 }
 
-func (s *Service) PaginatePolls(metadata *pagination.Metadata) ([]model.Poll, error) {
-	if metadata.Where != nil {
-		err := metadata.Where.Validate()
-		if err != nil {
-			return nil, err
-		}
+func (s *Service) PaginatePolls(query paginationmodel.Query) ([]model.Poll, map[string]paginationmodel.Query, error) {
+	err := query.Validate()
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return make([]model.Poll, 0), nil
+	paginationPipeline, err := pipeline.New().Pagination(query)
+	if err != nil {
+		return nil, nil, err
+	}
 
+	paginationPipelineResult, err := s.pollRepo.PaginateQuery(paginationPipeline)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return paginationPipeline.ParsePagination(query, paginationPipelineResult)
 }
 
 func (s *Service) AddPollVote(userIdString string, pollVote *model.PollVote) (*model.Poll, error) {

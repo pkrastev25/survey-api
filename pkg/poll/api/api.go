@@ -74,14 +74,14 @@ func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *dep
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *dependencies) {
-	pollsPaginationQuery, err := pagination.New(r.URL.Query())
+	pollsPaginationQuery, err := pagination.ParseQuery(r.URL.Query())
 	if err != nil {
 		deps.logger.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	polls, err := deps.pollHandler.PaginatePolls(pollsPaginationQuery)
+	polls, paginationNavigation, err := deps.pollHandler.PaginatePolls(pollsPaginationQuery)
 	if err != nil {
 		deps.logger.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -100,6 +100,14 @@ func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *depe
 		return
 	}
 
+	linkHeader, err := pagination.CreateLinkHeader(r, paginationNavigation)
+	if err != nil {
+		deps.logger.LogErr(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	pagination.SetLinkHeader(w, linkHeader)
 	w.WriteHeader(http.StatusOK)
 	w.Write(result)
 }

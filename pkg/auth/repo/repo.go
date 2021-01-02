@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"survey-api/pkg/auth/model"
+	"survey-api/pkg/dtime"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -31,7 +32,7 @@ func New(client *mongo.Client) (*Service, error) {
 
 func (s *Service) InsertOne(session *model.Session) (*model.Session, error) {
 	session.Id = primitive.NewObjectID()
-	session.LastModified = primitive.NewDateTimeFromTime(time.Now())
+	session.LastModified = dtime.DateTimeNow()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	_, err := s.sessionCollection().InsertOne(ctx, session)
@@ -71,7 +72,7 @@ func (s *Service) FindOne(sessionFilter *model.Session) (*model.Session, error) 
 }
 
 func (s *Service) ReplaceOne(session *model.Session) (*model.Session, error) {
-	session.LastModified = primitive.NewDateTimeFromTime(time.Now())
+	session.LastModified = primitive.NewDateTimeFromTime(time.Now().UTC())
 	sessionFilter := &model.Session{Id: session.Id}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

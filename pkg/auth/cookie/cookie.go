@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"survey-api/pkg/dtime"
 	"time"
 
 	sessionmodel "survey-api/pkg/auth/model"
@@ -45,8 +46,8 @@ func (s *Service) GenerateSessionCookie(session *sessionmodel.Session) (*http.Co
 		return nil, err
 	}
 
-	maxAge := int(time.Now().Add(cookieValidityHours).Unix())
-	cookie := s.generateCookie(encodedValue, maxAge)
+	expires := dtime.TimeNow().Add(cookieValidityHours)
+	cookie := s.generateCookie(encodedValue, expires)
 	return cookie, nil
 }
 
@@ -67,20 +68,25 @@ func (s *Service) ValidateSessionCookie(sessionCookie *http.Cookie) (string, err
 }
 
 func (s *Service) GenerateExpiredCookie() *http.Cookie {
-	return s.generateCookie("", -1)
+	return s.generateCookie("", dtime.NilTime)
 }
 
-func (s *Service) generateCookie(value string, maxAge int) *http.Cookie {
+func (s *Service) generateCookie(value string, expires time.Time) *http.Cookie {
 	cookie := &http.Cookie{
 		Name:     cookieName,
 		Path:     cookiePath,
-		MaxAge:   maxAge,
+		Expires:  expires,
+		MaxAge:   -1,
 		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	}
 
-	if len(value) != 0 {
+	if expires != dtime.NilTime {
+		cookie.MaxAge = int(expires.Unix())
+	}
+
+	if len(value) > 0 {
 		cookie.Value = value
 	}
 
