@@ -16,20 +16,20 @@ type PollVisibility string
 
 type Poll struct {
 	Id           primitive.ObjectID   `bson:"_id,omitempty"`
-	OwnerId      primitive.ObjectID   `bson:"creator_id,omitempty"`
-	Content      string               `bson:"content,omitempty"`
-	Options      []PollOption         `bson:"options,omitempty"`
-	Visibility   PollVisibility       `bson:"visibility,omitempty"`
-	VoterIds     []primitive.ObjectID `bson:"voter_ids,omitempty"`
-	Created      primitive.DateTime   `bson:"created,omitempty"`
-	Closed       primitive.DateTime   `bson:"closed,omitempty"`
-	LastModified primitive.DateTime   `bson:"last_modified,omitempty"`
+	CreatorId    primitive.ObjectID   `bson:"creator_id"`
+	Content      string               `bson:"content"`
+	Options      []PollOption         `bson:"options"`
+	Visibility   PollVisibility       `bson:"visibility"`
+	VoterIds     []primitive.ObjectID `bson:"voter_ids"`
+	Created      primitive.DateTime   `bson:"created"`
+	Closed       primitive.DateTime   `bson:"closed"`
+	LastModified primitive.DateTime   `bson:"last_modified"`
 }
 
 type PollOption struct {
-	Index   string `bson:"index,omitempty",json:"index"`
-	Content string `bson:"content,omitempty",json:"content"`
-	Count   int    `bson:"count,omitempty",json:"count"`
+	Index   string `bson:"index",json:"index"`
+	Content string `bson:"content",json:"content"`
+	Count   int    `bson:"count",json:"count"`
 }
 
 type CreatePoll struct {
@@ -56,66 +56,64 @@ type PollVote struct {
 	Index  string `json:"index"`
 }
 
-func (p *CreatePoll) ToPoll(userId string) (*Poll, error) {
+func (createPoll CreatePoll) ToPoll(userId string) (Poll, error) {
+	var poll Poll
 	creatorId, err := primitive.ObjectIDFromHex(userId)
 	if err != nil {
-		return nil, err
+		return poll, err
 	}
 
-	pollOptions := make([]PollOption, len(p.Options))
+	pollOptions := make([]PollOption, len(createPoll.Options))
 
-	for index, item := range p.Options {
-		pollOptions[index] = *item.ToPollOption(strconv.Itoa(index))
+	for index, item := range createPoll.Options {
+		pollOptions[index] = item.ToPollOption(strconv.Itoa(index))
 	}
 
-	poll := &Poll{
-		Id:         primitive.NewObjectID(),
-		OwnerId:    creatorId,
-		Content:    p.Content,
+	return Poll{
+		CreatorId:  creatorId,
+		Content:    createPoll.Content,
 		Options:    pollOptions,
-		Visibility: p.Visibility,
+		Visibility: createPoll.Visibility,
 		Created:    dtime.DateTimeNow(),
-	}
-
-	return poll, nil
+	}, nil
 }
 
-func (po *CreatePollOption) ToPollOption(index string) *PollOption {
-	return &PollOption{
+func (createPollOption CreatePollOption) ToPollOption(index string) PollOption {
+	return PollOption{
 		Index:   index,
-		Content: po.Content,
+		Content: createPollOption.Content,
 		Count:   0,
 	}
 }
 
-func (p *Poll) ToPollClient() *PollClient {
-	return &PollClient{
-		Id:           p.Id.Hex(),
-		Content:      p.Content,
-		Options:      p.Options,
-		Participants: len(p.VoterIds),
-		Created:      dtime.DateTimeToISO(p.Created),
-		Closed:       dtime.DateTimeToISO(p.Closed),
+func (poll Poll) ToPollClient() PollClient {
+	return PollClient{
+		Id:           poll.Id.Hex(),
+		Content:      poll.Content,
+		Options:      poll.Options,
+		Participants: len(poll.VoterIds),
+		Created:      dtime.DateTimeToISO(poll.Created),
+		Closed:       dtime.DateTimeToISO(poll.Closed),
 	}
 }
 
-func (p CreatePoll) Validate() error {
-	return validation.ValidateStruct(&p,
-		validation.Field(&p.Content, validation.Required),
-		validation.Field(&p.Visibility, validation.Required, validation.In(Public)),
-		validation.Field(&p.Options, validation.Required, validation.Length(2, 8)),
+func (createPoll CreatePoll) Validate() error {
+	return validation.ValidateStruct(&createPoll,
+		validation.Field(&createPoll.Content, validation.Required),
+		validation.Field(&createPoll.Visibility, validation.Required, validation.In(Public)),
+		validation.Field(&createPoll.Options, validation.Required, validation.Length(2, 8)),
 	)
 }
 
-func (po CreatePollOption) Validate() error {
-	return validation.ValidateStruct(&po,
-		validation.Field(&po.Content, validation.Required),
+func (createPollOption CreatePollOption) Validate() error {
+	return validation.ValidateStruct(&createPollOption,
+		validation.Field(&createPollOption.Content, validation.Required),
 	)
 }
 
-func (pv PollVote) Validate() error {
-	return validation.ValidateStruct(&pv,
-		validation.Field(&pv.PollId, validation.Required),
-		validation.Field(&pv.Index, validation.Required),
+func (pollVote PollVote) Validate() error {
+	return validation.ValidateStruct(&pollVote,
+		validation.Field(&pollVote.PollId, validation.Required),
+		validation.Field(&pollVote.Index, validation.Required),
 	)
 }

@@ -54,16 +54,19 @@ func Init(
 			return
 		}
 
-		var newCookie *http.Cookie
+		var generatedCookie *http.Cookie
 		token := session.Token
 		_, err = tokenService.ValidateJwtToken(token)
 		if err != nil {
-			newCookie, token, err = authHandler.RefreshAuth(session)
+			newCookie, newToken, err := authHandler.RefreshAuth(session)
 			if err != nil {
 				logger.LogErr(err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
+
+			generatedCookie = &newCookie
+			token = newToken
 		}
 
 		user, err := userRepo.FindById(session.UserId.Hex())
@@ -73,7 +76,7 @@ func Init(
 			return
 		}
 
-		authUser := &authmodel.AuthUser{
+		authUser := authmodel.AuthUser{
 			Token: token,
 			User:  user.ToClientUser(),
 		}
@@ -84,8 +87,8 @@ func Init(
 			return
 		}
 
-		if newCookie != nil {
-			http.SetCookie(w, cookie)
+		if generatedCookie != nil {
+			http.SetCookie(w, generatedCookie)
 		}
 
 		w.WriteHeader(http.StatusOK)

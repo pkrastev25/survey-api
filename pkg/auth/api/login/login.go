@@ -23,7 +23,7 @@ func Init(logger *logger.Service, authHandler *authhandler.Service) func(http.Re
 			return
 		}
 
-		var loginUser *model.LoginUser
+		var loginUser model.LoginUser
 		err := json.NewDecoder(r.Body).Decode(&loginUser)
 		if err != nil {
 			logger.LogErr(err)
@@ -45,7 +45,7 @@ func Init(logger *logger.Service, authHandler *authhandler.Service) func(http.Re
 			return
 		}
 
-		authUser := &authmodel.AuthUser{
+		authUser := authmodel.AuthUser{
 			Token: token,
 			User:  user.ToClientUser(),
 		}
@@ -56,7 +56,7 @@ func Init(logger *logger.Service, authHandler *authhandler.Service) func(http.Re
 			return
 		}
 
-		http.SetCookie(w, cookie)
+		http.SetCookie(w, &cookie)
 		w.WriteHeader(http.StatusOK)
 		w.Write(result)
 	}

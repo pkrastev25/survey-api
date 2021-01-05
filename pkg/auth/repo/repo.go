@@ -3,6 +3,8 @@ package repo
 import (
 	"context"
 	"survey-api/pkg/auth/model"
+	"survey-api/pkg/db/pipeline"
+	"survey-api/pkg/db/query"
 	"survey-api/pkg/dtime"
 	"time"
 
@@ -30,78 +32,93 @@ func New(client *mongo.Client) (*Service, error) {
 	return repo, nil
 }
 
-func (s *Service) InsertOne(session *model.Session) (*model.Session, error) {
-	session.Id = primitive.NewObjectID()
+func (service Service) InsertOne(session model.Session) (model.Session, error) {
 	session.LastModified = dtime.DateTimeNow()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	_, err := s.sessionCollection().InsertOne(ctx, session)
 	defer cancel()
+	result, err := service.sessionCollection().InsertOne(ctx, session)
 	if err != nil {
-		return nil, err
+		return session, err
 	}
 
+	id, ok := result.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return session, err
+	}
+
+	session.Id = id
 	return session, nil
 }
 
-func (s *Service) FindById(sessionIdString string) (*model.Session, error) {
+func (service Service) FindById(sessionIdString string) (model.Session, error) {
+	var session model.Session
 	sessionId, err := primitive.ObjectIDFromHex(sessionIdString)
 	if err != nil {
-		return nil, err
+		return session, err
 	}
 
-	return s.FindOne(&model.Session{Id: sessionId})
+	return service.FindOne(query.New().Filter("_id", sessionId))
 }
 
-func (s *Service) FindOne(sessionFilter *model.Session) (*model.Session, error) {
+func (service Service) FindOne(query query.Builder) (model.Session, error) {
+	var session model.Session
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	result := s.sessionCollection().FindOne(ctx, sessionFilter)
+	result := service.sessionCollection().FindOne(ctx, query.Build())
 	defer cancel()
 	err := result.Err()
 	if err != nil {
-		return nil, err
+		return session, err
 	}
 
-	var session *model.Session
 	err = result.Decode(&session)
+	return session, err
+}
+
+func (service Service) UpdateOne(filter query.Builder, updates query.Builder) (model.Session, error) {
+	var session model.Session
+	updates.Update("last_modified", dtime.DateTimeNow())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	result := service.sessionCollection().FindOneAndUpdate(ctx, filter.Build(), updates.Build(), options)
+	err := result.Err()
+	if err != nil {
+		return session, err
+	}
+
+	err = result.Decode(&session)
+	return session, err
+}
+
+func (service Service) DeleteOne(session model.Session) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result := service.sessionCollection().FindOneAndDelete(ctx, session)
+	return result.Err()
+}
+
+func (service Service) Execute(pipeline pipeline.Builder, resultType interface{}) (interface{}, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cursor, err := service.sessionCollection().Aggregate(ctx, pipeline.Build())
 	if err != nil {
 		return nil, err
 	}
 
-	return session, nil
-}
-
-func (s *Service) ReplaceOne(session *model.Session) (*model.Session, error) {
-	session.LastModified = primitive.NewDateTimeFromTime(time.Now().UTC())
-	sessionFilter := &model.Session{Id: session.Id}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	_, err := s.sessionCollection().ReplaceOne(ctx, sessionFilter, session)
+	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err != nil {
-		return nil, err
-	}
-
-	return session, nil
+	err = cursor.All(ctx, &resultType)
+	return resultType, err
 }
 
-func (s *Service) DeleteOne(session *model.Session) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	_, err := s.sessionCollection().DeleteOne(ctx, session)
-	defer cancel()
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (service Service) sessionCollection() *mongo.Collection {
+	return service.client.Database("survey").Collection("session")
 }
 
-func (s *Service) sessionCollection() *mongo.Collection {
-	return s.client.Database("survey").Collection("session")
-}
-
-func (s *Service) createUserIndexes() error {
-	collection := s.sessionCollection()
+func (service Service) createUserIndexes() error {
+	collection := service.sessionCollection()
 	indexes := []mongo.IndexModel{
 		{
 			Keys: bson.M{"last_modified": 1},

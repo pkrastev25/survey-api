@@ -12,9 +12,19 @@ const (
 	Text               Operation = "$text"
 	Search             Operation = "$search"
 	Sort               Operation = "$sort"
+	Set                Operation = "$set"
+	AddToSet           Operation = "$addToSet"
+	Increment          Operation = "$inc"
+	NotIn              Operation = "$nin"
+	LookUp             Operation = "$lookup"
 )
 
 const (
+	DB string = "survey"
+
+	UserCollection    string = "user"
+	SessionCollection string = "session"
+
 	Created Property = "created"
 )
 

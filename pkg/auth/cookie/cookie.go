@@ -29,29 +29,40 @@ func New() *Service {
 	return &Service{}
 }
 
-func (s *Service) ParseSessionCookie(r *http.Request) (*http.Cookie, error) {
-	return r.Cookie(cookieName)
+func (service Service) ParseSessionCookie(r *http.Request) (http.Cookie, error) {
+	var cookie http.Cookie
+	sessionCookie, err := r.Cookie(cookieName)
+	if err != nil {
+		return cookie, err
+	}
+
+	if sessionCookie == nil {
+		return cookie, errors.New("")
+	}
+
+	return *sessionCookie, nil
 }
 
-func (s *Service) GenerateSessionCookie(session *sessionmodel.Session) (*http.Cookie, error) {
+func (service Service) GenerateSessionCookie(session sessionmodel.Session) (http.Cookie, error) {
+	var cookie http.Cookie
 	sessionKey := os.Getenv("SESSION_KEY")
 	if len(sessionKey) == 0 {
-		return nil, errors.New("SESSION_KEY is not set")
+		return cookie, errors.New("SESSION_KEY is not set")
 	}
 
 	secureCookie := securecookie.New([]byte(sessionKey), nil)
 	cookieStore := &cookieStore{SessionId: session.Id.Hex()}
 	encodedValue, err := secureCookie.Encode(cookieName, cookieStore)
 	if err != nil {
-		return nil, err
+		return cookie, err
 	}
 
 	expires := dtime.TimeNow().Add(cookieValidityHours)
-	cookie := s.generateCookie(encodedValue, expires)
+	cookie = service.generateCookie(encodedValue, expires)
 	return cookie, nil
 }
 
-func (s *Service) ValidateSessionCookie(sessionCookie *http.Cookie) (string, error) {
+func (service Service) ValidateSessionCookie(sessionCookie http.Cookie) (string, error) {
 	sessionKey := os.Getenv("SESSION_KEY")
 	if len(sessionKey) == 0 {
 		return "", errors.New("SESSION_KEY is not set")
@@ -67,12 +78,12 @@ func (s *Service) ValidateSessionCookie(sessionCookie *http.Cookie) (string, err
 	return cookieStore.SessionId, nil
 }
 
-func (s *Service) GenerateExpiredCookie() *http.Cookie {
-	return s.generateCookie("", dtime.NilTime)
+func (service Service) GenerateExpiredCookie() http.Cookie {
+	return service.generateCookie("", dtime.NilTime)
 }
 
-func (s *Service) generateCookie(value string, expires time.Time) *http.Cookie {
-	cookie := &http.Cookie{
+func (service Service) generateCookie(value string, expires time.Time) http.Cookie {
+	cookie := http.Cookie{
 		Name:     cookieName,
 		Path:     cookiePath,
 		Expires:  expires,

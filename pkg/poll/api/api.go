@@ -47,7 +47,7 @@ func Init(
 }
 
 func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *dependencies) {
-	var createPoll *model.CreatePoll
+	var createPoll model.CreatePoll
 	err := json.NewDecoder(r.Body).Decode(&createPoll)
 	if err != nil {
 		deps.logger.LogErr(err)
@@ -90,7 +90,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *depe
 
 	pollClients := make([]model.PollClient, len(polls))
 	for index := range polls {
-		pollClients[index] = *polls[index].ToPollClient()
+		pollClients[index] = polls[index].ToPollClient()
 	}
 
 	result, err := json.Marshal(pollClients)

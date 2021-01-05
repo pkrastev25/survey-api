@@ -37,7 +37,7 @@ func Init(
 			return
 		}
 
-		var pollVote *model.PollVote
+		var pollVote model.PollVote
 		err = json.NewDecoder(r.Body).Decode(&pollVote)
 		if err != nil {
 			deps.logger.LogErr(err)

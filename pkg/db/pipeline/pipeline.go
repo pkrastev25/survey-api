@@ -23,6 +23,17 @@ func (builder Builder) Build() []bson.M {
 	return builder.pipeline
 }
 
+func (builder Builder) Match(property string, value interface{}) Builder {
+	builder.pipeline = append(builder.pipeline, bson.M{string(dbmodel.Match): bson.M{property: value}})
+	return builder
+}
+
+func (builder Builder) LookUp(from string, localField string, foreignField string, as string) Builder {
+	lookUp := bson.M{string(dbmodel.LookUp): bson.M{"from": from, "localField": localField, "foreignField": foreignField, "as": as}}
+	builder.pipeline = append(builder.pipeline, lookUp)
+	return builder
+}
+
 func (builder Builder) Pagination(query paginationmodel.Query) (Builder, error) {
 	textSearch := builder.toTextSearch(query.Search())
 	if len(textSearch) > 0 {

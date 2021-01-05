@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"survey-api/pkg/auth/cookie"
 	authhandler "survey-api/pkg/auth/handler"
-	authmodel "survey-api/pkg/auth/model"
 	authrepo "survey-api/pkg/auth/repo"
 	"survey-api/pkg/auth/token"
+	"survey-api/pkg/db/query"
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
 )
@@ -44,7 +44,7 @@ func Init(
 			return
 		}
 
-		session, err := authRepo.FindOne(&authmodel.Session{Token: token})
+		session, err := authRepo.FindOne(query.New().Filter("token", token))
 		if err != nil {
 			logger.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -58,7 +58,8 @@ func Init(
 			return
 		}
 
-		http.SetCookie(w, cookieService.GenerateExpiredCookie())
+		cookie := cookieService.GenerateExpiredCookie()
+		http.SetCookie(w, &cookie)
 		w.WriteHeader(http.StatusOK)
 	}
 }

@@ -7,13 +7,13 @@ import (
 )
 
 type AuthUser struct {
-	Token string            `json:"token"`
-	User  *model.ClientUser `json:"user"`
+	Token string           `json:"token"`
+	User  model.ClientUser `json:"user"`
 }
 
 type Session struct {
 	Id           primitive.ObjectID `bson:"_id,omitempty"`
-	UserId       primitive.ObjectID `bson:"user_id,omitempty"`
-	Token        string             `bson:"token,omitempty"`
-	LastModified primitive.DateTime `bson:"last_modified,omitempty"`
+	UserId       primitive.ObjectID `bson:"user_id"`
+	Token        string             `bson:"token"`
+	LastModified primitive.DateTime `bson:"last_modified"`
 }

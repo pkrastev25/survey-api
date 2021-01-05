@@ -2,6 +2,8 @@ package repo
 
 import (
 	"context"
+	"errors"
+	"survey-api/pkg/db/query"
 	"survey-api/pkg/user/model"
 	"time"
 
@@ -25,50 +27,57 @@ func New(client *mongo.Client) (*Service, error) {
 	return repo, nil
 }
 
-func (s *Service) InsertOne(u *model.User) (*model.User, error) {
+func (service Service) InsertOne(user model.User) (model.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	_, err := s.userCollection().InsertOne(ctx, u)
 	defer cancel()
+	result, err := service.userCollection().InsertOne(ctx, user)
 	if err != nil {
-		return nil, err
+		return user, err
 	}
 
-	return u, nil
+	id, ok := result.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return user, errors.New("")
+	}
+
+	user.Id = id
+	return user, nil
 }
 
-func (s *Service) FindById(userIdString string) (*model.User, error) {
+func (service Service) FindById(userIdString string) (model.User, error) {
+	var user model.User
 	userId, err := primitive.ObjectIDFromHex(userIdString)
 	if err != nil {
-		return nil, err
+		return user, err
 	}
 
-	return s.FindOne(&model.User{Id: userId})
+	return service.FindOne(query.New().Filter("_id", userId))
 }
 
-func (s *Service) FindOne(userFilter *model.User) (*model.User, error) {
+func (service Service) FindOne(query query.Builder) (model.User, error) {
+	var user model.User
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	result := s.userCollection().FindOne(ctx, userFilter)
+	result := service.userCollection().FindOne(ctx, query.Build())
 	defer cancel()
 	err := result.Err()
 	if err != nil {
-		return nil, err
+		return user, err
 	}
 
-	var user *model.User
 	err = result.Decode(&user)
 	if err != nil {
-		return nil, err
+		return user, err
 	}
 
 	return user, nil
 }
 
-func (s *Service) userCollection() *mongo.Collection {
-	return s.client.Database("survey").Collection("user")
+func (service Service) userCollection() *mongo.Collection {
+	return service.client.Database("survey").Collection("user")
 }
 
-func (s *Service) createUserIndexes() error {
-	collection := s.userCollection()
+func (service Service) createUserIndexes() error {
+	collection := service.userCollection()
 	indexes := []mongo.IndexModel{
 		{
 			Keys:    bson.M{"user_name": "text"},
