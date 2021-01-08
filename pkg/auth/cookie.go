@@ -1,4 +1,4 @@
-package cookie
+package auth
 
 import (
 	"errors"
@@ -6,8 +6,6 @@ import (
 	"os"
 	"survey-api/pkg/dtime"
 	"time"
-
-	sessionmodel "survey-api/pkg/auth/model"
 
 	"github.com/gorilla/securecookie"
 )
@@ -18,18 +16,18 @@ const (
 	cookiePath          = "/token/refresh"
 )
 
-type Service struct {
+type CookieService struct {
 }
 
 type cookieStore struct {
 	SessionId string `json:"session_id"`
 }
 
-func New() *Service {
-	return &Service{}
+func NewCookieService() *CookieService {
+	return &CookieService{}
 }
 
-func (service Service) ParseSessionCookie(r *http.Request) (http.Cookie, error) {
+func (service CookieService) ParseSessionCookie(r *http.Request) (http.Cookie, error) {
 	var cookie http.Cookie
 	sessionCookie, err := r.Cookie(cookieName)
 	if err != nil {
@@ -43,7 +41,7 @@ func (service Service) ParseSessionCookie(r *http.Request) (http.Cookie, error) 
 	return *sessionCookie, nil
 }
 
-func (service Service) GenerateSessionCookie(session sessionmodel.Session) (http.Cookie, error) {
+func (service CookieService) GenerateSessionCookie(session Session) (http.Cookie, error) {
 	var cookie http.Cookie
 	sessionKey := os.Getenv("SESSION_KEY")
 	if len(sessionKey) == 0 {
@@ -62,7 +60,7 @@ func (service Service) GenerateSessionCookie(session sessionmodel.Session) (http
 	return cookie, nil
 }
 
-func (service Service) ValidateSessionCookie(sessionCookie http.Cookie) (string, error) {
+func (service CookieService) ValidateSessionCookie(sessionCookie http.Cookie) (string, error) {
 	sessionKey := os.Getenv("SESSION_KEY")
 	if len(sessionKey) == 0 {
 		return "", errors.New("SESSION_KEY is not set")
@@ -78,11 +76,11 @@ func (service Service) ValidateSessionCookie(sessionCookie http.Cookie) (string,
 	return cookieStore.SessionId, nil
 }
 
-func (service Service) GenerateExpiredCookie() http.Cookie {
+func (service CookieService) GenerateExpiredCookie() http.Cookie {
 	return service.generateCookie("", dtime.NilTime)
 }
 
-func (service Service) generateCookie(value string, expires time.Time) http.Cookie {
+func (service CookieService) generateCookie(value string, expires time.Time) http.Cookie {
 	cookie := http.Cookie{
 		Name:     cookieName,
 		Path:     cookiePath,

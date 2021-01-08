@@ -11,14 +11,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
-	"survey-api/pkg/auth/cookie"
-	"survey-api/pkg/auth/handler"
-	repo2 "survey-api/pkg/auth/repo"
-	"survey-api/pkg/auth/token"
+	"survey-api/pkg/auth"
 	"survey-api/pkg/logger"
-	handler2 "survey-api/pkg/poll/handler"
-	repo3 "survey-api/pkg/poll/repo"
-	"survey-api/pkg/user/repo"
+	"survey-api/pkg/pagination"
+	"survey-api/pkg/poll"
+	"survey-api/pkg/user"
 	"time"
 )
 
@@ -30,37 +27,41 @@ func create() (*Dependencies, error) {
 	if err != nil {
 		return nil, err
 	}
-	repoService, err := repo.New(client)
+	userRepo, err := user.NewUserRepo(client)
 	if err != nil {
 		return nil, err
 	}
-	service2, err := repo2.New(client)
+	authRepo, err := auth.NewAuthRepo(client)
 	if err != nil {
 		return nil, err
 	}
-	tokenService := &token.Service{}
-	cookieService := &cookie.Service{}
-	handlerService := handler.New(repoService, service2, tokenService, cookieService)
-	service3, err := repo3.New(client)
+	tokenService := &auth.TokenService{}
+	cookieService := &auth.CookieService{}
+	authHandler := auth.NewAuthHandler(userRepo, authRepo, tokenService, cookieService)
+	pollRepo, err := poll.NewPollRepo(client)
 	if err != nil {
 		return nil, err
 	}
-	service4 := handler2.New(service3)
-	diDependencies := packageDependencies(service, handlerService, tokenService, cookieService, service2, repoService, service3, service4)
+	paginationMapper := pagination.NewPaginationMapper()
+	pollHandler := poll.NewPollHandler(pollRepo, paginationMapper)
+	pollPaginationHandler := poll.NewPollPaginationHandler()
+	diDependencies := packageDependencies(service, authHandler, tokenService, cookieService, authRepo, userRepo, pollRepo, pollHandler, paginationMapper, pollPaginationHandler)
 	return diDependencies, nil
 }
 
 // di.go:
 
 type Dependencies struct {
-	Logger        *logger.Service
-	AuthHandler   *handler.Service
-	TokenService  *token.Service
-	CookieService *cookie.Service
-	AuthRepo      *repo2.Service
-	UserRepo      *repo.Service
-	PollRepo      *repo3.Service
-	PollHandler   *handler2.Service
+	Logger                *logger.Service
+	AuthHandler           *auth.AuthHandler
+	TokenService          *auth.TokenService
+	CookieService         *auth.CookieService
+	AuthRepo              *auth.AuthRepo
+	UserRepo              *user.UserRepo
+	PollRepo              *poll.PollRepo
+	PollHandler           *poll.PollHandler
+	PaginationMapper      *pagination.PaginationMapper
+	PollPaginationHandler *poll.PollPaginationHandler
 }
 
 var dependencies *Dependencies
@@ -88,9 +89,8 @@ func createMongodbClient() (*mongo.Client, error) {
 	if len(port) == 0 {
 		port = "27017"
 	}
-
-	user := os.Getenv("MONGODB_USER")
-	if len(user) == 0 {
+	user2 := os.Getenv("MONGODB_USER")
+	if len(user2) == 0 {
 		return nil, errors.New("MONGODB_USER is not set")
 	}
 
@@ -102,7 +102,7 @@ func createMongodbClient() (*mongo.Client, error) {
 	url := "mongodb://" + host + ":" + port
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	clientOptions := options.Client().ApplyURI(url).SetAuth(options.Credential{
-		Username: user,
+		Username: user2,
 		Password: password,
 	})
 	client, err := mongo.Connect(ctx, clientOptions)
@@ -115,22 +115,26 @@ func createMongodbClient() (*mongo.Client, error) {
 }
 
 func packageDependencies(logger2 *logger.Service,
-	authHandler *handler.Service,
-	tokenService *token.Service,
-	cookieService *cookie.Service,
-	authRepo *repo2.Service,
-	userRepo *repo.Service,
-	pollRepo *repo3.Service,
-	pollHandler *handler2.Service,
+	authHandler *auth.AuthHandler,
+	tokenService *auth.TokenService,
+	cookieService *auth.CookieService,
+	authRepo *auth.AuthRepo,
+	userRepo *user.UserRepo,
+	pollRepo *poll.PollRepo,
+	pollHandler *poll.PollHandler,
+	paginationMapper *pagination.PaginationMapper,
+	pollPaginationHandler *poll.PollPaginationHandler,
 ) *Dependencies {
 	return &Dependencies{
-		Logger:        logger2,
-		AuthHandler:   authHandler,
-		TokenService:  tokenService,
-		CookieService: cookieService,
-		AuthRepo:      authRepo,
-		UserRepo:      userRepo,
-		PollRepo:      pollRepo,
-		PollHandler:   pollHandler,
+		Logger:                logger2,
+		AuthHandler:           authHandler,
+		TokenService:          tokenService,
+		CookieService:         cookieService,
+		AuthRepo:              authRepo,
+		UserRepo:              userRepo,
+		PollRepo:              pollRepo,
+		PollHandler:           pollHandler,
+		PaginationMapper:      paginationMapper,
+		PollPaginationHandler: pollPaginationHandler,
 	}
 }

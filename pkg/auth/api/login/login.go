@@ -3,11 +3,10 @@ package login
 import (
 	"encoding/json"
 	"net/http"
-	authhandler "survey-api/pkg/auth/handler"
-	authmodel "survey-api/pkg/auth/model"
+	"survey-api/pkg/auth"
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
-	"survey-api/pkg/user/model"
+	"survey-api/pkg/user"
 )
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -16,14 +15,14 @@ func Handler() func(http.ResponseWriter, *http.Request) {
 	return handler
 }
 
-func Init(logger *logger.Service, authHandler *authhandler.Service) func(http.ResponseWriter, *http.Request) {
+func Init(logger *logger.Service, authHandler *auth.AuthHandler) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		var loginUser model.LoginUser
+		var loginUser user.LoginUser
 		err := json.NewDecoder(r.Body).Decode(&loginUser)
 		if err != nil {
 			logger.LogErr(err)
@@ -45,7 +44,7 @@ func Init(logger *logger.Service, authHandler *authhandler.Service) func(http.Re
 			return
 		}
 
-		authUser := authmodel.AuthUser{
+		authUser := auth.AuthUser{
 			Token: token,
 			User:  user.ToClientUser(),
 		}

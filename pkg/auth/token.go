@@ -1,4 +1,4 @@
-package token
+package auth
 
 import (
 	"errors"
@@ -17,14 +17,14 @@ const (
 	jwtTokenValidityMins = time.Minute * time.Duration(10)
 )
 
-type Service struct {
+type TokenService struct {
 }
 
-func New() *Service {
-	return &Service{}
+func NewTokenService() *TokenService {
+	return &TokenService{}
 }
 
-func (service Service) ParseJwtToken(r *http.Request) (string, error) {
+func (service TokenService) ParseJwtToken(r *http.Request) (string, error) {
 	parsedToken := strings.Split(r.Header.Get(jwtHeader), jwtHeaderValue)
 	if len(parsedToken) != 2 {
 		return "", errors.New("Malformed token")
@@ -38,7 +38,7 @@ func (service Service) ParseJwtToken(r *http.Request) (string, error) {
 	return tokenString, nil
 }
 
-func (service Service) GenerateJwtToken(userId string) (string, error) {
+func (service TokenService) GenerateJwtToken(userId string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
 		Subject:   userId,
 		ExpiresAt: dtime.TimeNow().Add(jwtTokenValidityMins).Unix(),
@@ -56,7 +56,7 @@ func (service Service) GenerateJwtToken(userId string) (string, error) {
 	return tokenString, nil
 }
 
-func (service Service) ValidateJwtToken(tokenString string) (string, error) {
+func (service TokenService) ValidateJwtToken(tokenString string) (string, error) {
 	jwtKey := os.Getenv("JWT_KEY")
 	if len(jwtKey) == 0 {
 		return "", errors.New("JWT_KEY is not set")

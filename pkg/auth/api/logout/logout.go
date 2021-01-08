@@ -2,11 +2,8 @@ package logout
 
 import (
 	"net/http"
-	"survey-api/pkg/auth/cookie"
-	authhandler "survey-api/pkg/auth/handler"
-	authrepo "survey-api/pkg/auth/repo"
-	"survey-api/pkg/auth/token"
-	"survey-api/pkg/db/query"
+	"survey-api/pkg/auth"
+	"survey-api/pkg/db"
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
 )
@@ -19,10 +16,10 @@ func Handler() func(http.ResponseWriter, *http.Request) {
 
 func Init(
 	logger *logger.Service,
-	authHandler *authhandler.Service,
-	authRepo *authrepo.Service,
-	tokenService *token.Service,
-	cookieService *cookie.Service,
+	authHandler *auth.AuthHandler,
+	authRepo *auth.AuthRepo,
+	tokenService *auth.TokenService,
+	cookieService *auth.CookieService,
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -44,7 +41,7 @@ func Init(
 			return
 		}
 
-		session, err := authRepo.FindOne(query.New().Filter("token", token))
+		session, err := authRepo.FindOne(db.NewQueryBuilder().Equal("token", token))
 		if err != nil {
 			logger.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)

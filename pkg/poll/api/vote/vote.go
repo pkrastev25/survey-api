@@ -3,17 +3,16 @@ package vote
 import (
 	"encoding/json"
 	"net/http"
-	authhandler "survey-api/pkg/auth/handler"
+	"survey-api/pkg/auth"
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
-	pollhandler "survey-api/pkg/poll/handler"
-	"survey-api/pkg/poll/model"
+	"survey-api/pkg/poll"
 )
 
 type dependencies struct {
 	logger      *logger.Service
-	authHandler *authhandler.Service
-	pollHandler *pollhandler.Service
+	authHandler *auth.AuthHandler
+	pollHandler *poll.PollHandler
 }
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -37,7 +36,7 @@ func Init(
 			return
 		}
 
-		var pollVote model.PollVote
+		var pollVote poll.PollVote
 		err = json.NewDecoder(r.Body).Decode(&pollVote)
 		if err != nil {
 			deps.logger.LogErr(err)

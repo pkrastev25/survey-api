@@ -3,14 +3,10 @@ package refresh
 import (
 	"encoding/json"
 	"net/http"
-	"survey-api/pkg/auth/cookie"
-	authhandler "survey-api/pkg/auth/handler"
-	authmodel "survey-api/pkg/auth/model"
-	authrepo "survey-api/pkg/auth/repo"
-	"survey-api/pkg/auth/token"
+	"survey-api/pkg/auth"
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
-	userrepo "survey-api/pkg/user/repo"
+	"survey-api/pkg/user"
 )
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -21,11 +17,11 @@ func Handler() func(http.ResponseWriter, *http.Request) {
 
 func Init(
 	logger *logger.Service,
-	cookieService *cookie.Service,
-	tokenService *token.Service,
-	authRepo *authrepo.Service,
-	userRepo *userrepo.Service,
-	authHandler *authhandler.Service,
+	cookieService *auth.CookieService,
+	tokenService *auth.TokenService,
+	authRepo *auth.AuthRepo,
+	userRepo *user.UserRepo,
+	authHandler *auth.AuthHandler,
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -76,7 +72,7 @@ func Init(
 			return
 		}
 
-		authUser := authmodel.AuthUser{
+		authUser := auth.AuthUser{
 			Token: token,
 			User:  user.ToClientUser(),
 		}

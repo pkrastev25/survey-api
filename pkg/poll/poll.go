@@ -1,4 +1,4 @@
-package model
+package poll
 
 import (
 	"strconv"

@@ -1,10 +1,9 @@
-package repo
+package user
 
 import (
 	"context"
 	"errors"
-	"survey-api/pkg/db/query"
-	"survey-api/pkg/user/model"
+	"survey-api/pkg/db"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -13,12 +12,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type Service struct {
+type UserRepo struct {
 	client *mongo.Client
 }
 
-func New(client *mongo.Client) (*Service, error) {
-	repo := &Service{client: client}
+func NewUserRepo(client *mongo.Client) (*UserRepo, error) {
+	repo := &UserRepo{client: client}
 	err := repo.createUserIndexes()
 	if err != nil {
 		return nil, err
@@ -27,10 +26,10 @@ func New(client *mongo.Client) (*Service, error) {
 	return repo, nil
 }
 
-func (service Service) InsertOne(user model.User) (model.User, error) {
+func (repo UserRepo) InsertOne(user User) (User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	result, err := service.userCollection().InsertOne(ctx, user)
+	result, err := repo.userCollection().InsertOne(ctx, user)
 	if err != nil {
 		return user, err
 	}
@@ -44,20 +43,20 @@ func (service Service) InsertOne(user model.User) (model.User, error) {
 	return user, nil
 }
 
-func (service Service) FindById(userIdString string) (model.User, error) {
-	var user model.User
+func (repo UserRepo) FindById(userIdString string) (User, error) {
+	var user User
 	userId, err := primitive.ObjectIDFromHex(userIdString)
 	if err != nil {
 		return user, err
 	}
 
-	return service.FindOne(query.New().Filter("_id", userId))
+	return repo.FindOne(db.NewQueryBuilder().Equal("_id", userId))
 }
 
-func (service Service) FindOne(query query.Builder) (model.User, error) {
-	var user model.User
+func (repo UserRepo) FindOne(query db.QueryBuilder) (User, error) {
+	var user User
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	result := service.userCollection().FindOne(ctx, query.Build())
+	result := repo.userCollection().FindOne(ctx, query.Build())
 	defer cancel()
 	err := result.Err()
 	if err != nil {
@@ -72,12 +71,12 @@ func (service Service) FindOne(query query.Builder) (model.User, error) {
 	return user, nil
 }
 
-func (service Service) userCollection() *mongo.Collection {
-	return service.client.Database("survey").Collection("user")
+func (repo UserRepo) userCollection() *mongo.Collection {
+	return repo.client.Database("survey").Collection("user")
 }
 
-func (service Service) createUserIndexes() error {
-	collection := service.userCollection()
+func (repo UserRepo) createUserIndexes() error {
+	collection := repo.userCollection()
 	indexes := []mongo.IndexModel{
 		{
 			Keys:    bson.M{"user_name": "text"},

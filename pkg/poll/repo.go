@@ -1,11 +1,9 @@
-package repo
+package poll
 
 import (
 	"context"
-	dbpipeline "survey-api/pkg/db/pipeline"
-	"survey-api/pkg/db/query"
+	"survey-api/pkg/db"
 	"survey-api/pkg/dtime"
-	"survey-api/pkg/poll/model"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -14,12 +12,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type Service struct {
+type PollRepo struct {
 	client *mongo.Client
 }
 
-func New(client *mongo.Client) (*Service, error) {
-	repo := &Service{client: client}
+func NewPollRepo(client *mongo.Client) (*PollRepo, error) {
+	repo := &PollRepo{client: client}
 	err := repo.createPollIndexes()
 	if err != nil {
 		return nil, err
@@ -28,12 +26,12 @@ func New(client *mongo.Client) (*Service, error) {
 	return repo, nil
 }
 
-func (service Service) InsertOne(poll model.Poll) (model.Poll, error) {
+func (repo PollRepo) InsertOne(poll Poll) (Poll, error) {
 	poll.LastModified = dtime.DateTimeNow()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	result, err := service.pollCollection().InsertOne(ctx, poll)
+	result, err := repo.pollCollection().InsertOne(ctx, poll)
 	if err != nil {
 		return poll, err
 	}
@@ -42,21 +40,21 @@ func (service Service) InsertOne(poll model.Poll) (model.Poll, error) {
 	return poll, nil
 }
 
-func (service Service) FindById(pollIdString string) (model.Poll, error) {
-	var poll model.Poll
+func (repo PollRepo) FindById(pollIdString string) (Poll, error) {
+	var poll Poll
 	pollId, err := primitive.ObjectIDFromHex(pollIdString)
 	if err != nil {
 		return poll, err
 	}
 
-	return service.FindOne(query.New().Filter("_id", pollId))
+	return repo.FindOne(db.NewQueryBuilder().Equal("_id", pollId))
 }
 
-func (service Service) FindOne(query query.Builder) (model.Poll, error) {
-	var poll model.Poll
+func (repo PollRepo) FindOne(query db.QueryBuilder) (Poll, error) {
+	var poll Poll
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	result := service.pollCollection().FindOne(ctx, query.Build())
+	result := repo.pollCollection().FindOne(ctx, query.Build())
 	err := result.Err()
 	if err != nil {
 		return poll, err
@@ -70,29 +68,20 @@ func (service Service) FindOne(query query.Builder) (model.Poll, error) {
 	return poll, nil
 }
 
-func (service Service) PaginateQuery(pipeline dbpipeline.Builder) ([]map[string][]model.Poll, error) {
+func (repo PollRepo) FindMany(pipeline db.PipelineBuilder) (*mongo.Cursor, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	cursor, err := service.pollCollection().Aggregate(ctx, pipeline.Build())
-	if err != nil {
-		return nil, err
-	}
-
-	var result []map[string][]model.Poll
-	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	err = cursor.All(ctx, &result)
-	return result, err
+	return repo.pollCollection().Aggregate(ctx, pipeline.Build())
 }
 
-func (service Service) UpdateOne(filter query.Builder, updates query.Builder) (model.Poll, error) {
-	var poll model.Poll
-	updates.Update("last_modified", dtime.DateTimeNow())
+func (repo PollRepo) UpdateOne(filter db.QueryBuilder, updates db.QueryBuilder) (Poll, error) {
+	var poll Poll
+	updates.Set("last_modified", dtime.DateTimeNow())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	result := service.pollCollection().FindOneAndUpdate(ctx, filter.Build(), updates.Build(), options)
+	result := repo.pollCollection().FindOneAndUpdate(ctx, filter.Build(), updates.Build(), options)
 	err := result.Err()
 	if err != nil {
 		return poll, err
@@ -106,10 +95,10 @@ func (service Service) UpdateOne(filter query.Builder, updates query.Builder) (m
 	return poll, nil
 }
 
-func (service Service) DeleteOne(filter query.Builder) error {
+func (repo PollRepo) DeleteOne(filter db.QueryBuilder) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	result := service.pollCollection().FindOneAndDelete(ctx, filter.Build())
+	result := repo.pollCollection().FindOneAndDelete(ctx, filter.Build())
 	err := result.Err()
 	if err != nil {
 		return err
@@ -118,12 +107,12 @@ func (service Service) DeleteOne(filter query.Builder) error {
 	return nil
 }
 
-func (service Service) pollCollection() *mongo.Collection {
-	return service.client.Database("survey").Collection("poll")
+func (repo PollRepo) pollCollection() *mongo.Collection {
+	return repo.client.Database("survey").Collection("poll")
 }
 
-func (service Service) createPollIndexes() error {
-	collection := service.pollCollection()
+func (repo PollRepo) createPollIndexes() error {
+	collection := repo.pollCollection()
 	indexes := []mongo.IndexModel{
 		{
 			Keys: bson.M{"content": "text"},

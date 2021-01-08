@@ -3,11 +3,10 @@ package register
 import (
 	"encoding/json"
 	"net/http"
-	authhandler "survey-api/pkg/auth/handler"
-	authmodel "survey-api/pkg/auth/model"
+	"survey-api/pkg/auth"
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
-	usermodel "survey-api/pkg/user/model"
+	"survey-api/pkg/user"
 )
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -16,14 +15,14 @@ func Handler() func(http.ResponseWriter, *http.Request) {
 	return handler
 }
 
-func Init(logger *logger.Service, authHandler *authhandler.Service) func(http.ResponseWriter, *http.Request) {
+func Init(logger *logger.Service, authHandler *auth.AuthHandler) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		var registerUser usermodel.RegisterUser
+		var registerUser user.RegisterUser
 		err := json.NewDecoder(r.Body).Decode(&registerUser)
 		if err != nil {
 			logger.LogErr(err)
@@ -46,7 +45,7 @@ func Init(logger *logger.Service, authHandler *authhandler.Service) func(http.Re
 			return
 		}
 
-		authUser := authmodel.AuthUser{
+		authUser := auth.AuthUser{
 			Token: token,
 			User:  user.ToClientUser(),
 		}

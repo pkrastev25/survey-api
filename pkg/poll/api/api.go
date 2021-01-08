@@ -3,18 +3,17 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	authhandler "survey-api/pkg/auth/handler"
+	"survey-api/pkg/auth"
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
-	pollhandler "survey-api/pkg/poll/handler"
-	"survey-api/pkg/poll/model"
-	"survey-api/pkg/poll/pagination"
+	"survey-api/pkg/poll"
 )
 
 type dependencies struct {
-	logger      *logger.Service
-	authHandler *authhandler.Service
-	pollHandler *pollhandler.Service
+	logger                *logger.Service
+	authHandler           *auth.AuthHandler
+	pollHandler           *poll.PollHandler
+	pollPaginationHandler *poll.PollPaginationHandler
 }
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -47,7 +46,7 @@ func Init(
 }
 
 func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *dependencies) {
-	var createPoll model.CreatePoll
+	var createPoll poll.CreatePoll
 	err := json.NewDecoder(r.Body).Decode(&createPoll)
 	if err != nil {
 		deps.logger.LogErr(err)
@@ -74,21 +73,21 @@ func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *dep
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *dependencies) {
-	pollsPaginationQuery, err := pagination.ParseQuery(r.URL.Query())
+	query, err := deps.pollPaginationHandler.ParseQuery(r.URL.Query())
 	if err != nil {
 		deps.logger.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	polls, paginationNavigation, err := deps.pollHandler.PaginatePolls(pollsPaginationQuery)
+	polls, paginationNavigation, err := deps.pollHandler.Paginate(query)
 	if err != nil {
 		deps.logger.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	pollClients := make([]model.PollClient, len(polls))
+	pollClients := make([]poll.PollClient, len(polls))
 	for index := range polls {
 		pollClients[index] = polls[index].ToPollClient()
 	}
@@ -100,14 +99,14 @@ func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *depe
 		return
 	}
 
-	linkHeader, err := pagination.CreateLinkHeader(r, paginationNavigation)
+	linkHeader, err := deps.pollPaginationHandler.CreateLinkHeader(r, paginationNavigation)
 	if err != nil {
 		deps.logger.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	pagination.SetLinkHeader(w, linkHeader)
+	deps.pollPaginationHandler.SetLinkHeader(w, linkHeader)
 	w.WriteHeader(http.StatusOK)
 	w.Write(result)
 }
@@ -132,9 +131,10 @@ func handleDelete(w http.ResponseWriter, r *http.Request, userId string, deps *d
 func init() {
 	handler = Init(
 		&dependencies{
-			logger:      di.Container().Logger,
-			authHandler: di.Container().AuthHandler,
-			pollHandler: di.Container().PollHandler,
+			logger:                di.Container().Logger,
+			authHandler:           di.Container().AuthHandler,
+			pollHandler:           di.Container().PollHandler,
+			pollPaginationHandler: di.Container().PollPaginationHandler,
 		},
 	)
 }

@@ -6,14 +6,11 @@ import (
 	"context"
 	"errors"
 	"os"
-	"survey-api/pkg/auth/cookie"
-	"survey-api/pkg/auth/handler"
-	authrepo "survey-api/pkg/auth/repo"
-	"survey-api/pkg/auth/token"
+	"survey-api/pkg/auth"
 	"survey-api/pkg/logger"
-	pollhandler "survey-api/pkg/poll/handler"
-	pollrepo "survey-api/pkg/poll/repo"
-	userrepo "survey-api/pkg/user/repo"
+	"survey-api/pkg/pagination"
+	"survey-api/pkg/poll"
+	"survey-api/pkg/user"
 	"time"
 
 	"github.com/google/wire"
@@ -22,14 +19,16 @@ import (
 )
 
 type Dependencies struct {
-	Logger        *logger.Service
-	AuthHandler   *handler.Service
-	TokenService  *token.Service
-	CookieService *cookie.Service
-	AuthRepo      *authrepo.Service
-	UserRepo      *userrepo.Service
-	PollRepo      *pollrepo.Service
-	PollHandler   *pollhandler.Service
+	Logger                *logger.Service
+	AuthHandler           *auth.AuthHandler
+	TokenService          *auth.TokenService
+	CookieService         *auth.CookieService
+	AuthRepo              *auth.AuthRepo
+	UserRepo              *user.UserRepo
+	PollRepo              *poll.PollRepo
+	PollHandler           *poll.PollHandler
+	PaginationMapper      *pagination.PaginationMapper
+	PollPaginationHandler *poll.PollPaginationHandler
 }
 
 var dependencies *Dependencies
@@ -50,14 +49,16 @@ func Container() *Dependencies {
 func create() (*Dependencies, error) {
 	panic(wire.Build(
 		wire.Struct(new(logger.Service), "*"),
-		wire.Struct(new(token.Service), "*"),
-		wire.Struct(new(cookie.Service), "*"),
+		wire.Struct(new(auth.TokenService), "*"),
+		wire.Struct(new(auth.CookieService), "*"),
 		createMongodbClient,
-		userrepo.New,
-		authrepo.New,
-		handler.New,
-		pollrepo.New,
-		pollhandler.New,
+		user.NewUserRepo,
+		auth.NewAuthRepo,
+		auth.NewAuthHandler,
+		poll.NewPollRepo,
+		poll.NewPollHandler,
+		pagination.NewPaginationMapper,
+		poll.NewPollPaginationHandler,
 		packageDependencies,
 	))
 }
@@ -100,22 +101,26 @@ func createMongodbClient() (*mongo.Client, error) {
 
 func packageDependencies(
 	logger *logger.Service,
-	authHandler *handler.Service,
-	tokenService *token.Service,
-	cookieService *cookie.Service,
-	authRepo *authrepo.Service,
-	userRepo *userrepo.Service,
-	pollRepo *pollrepo.Service,
-	pollHandler *pollhandler.Service,
+	authHandler *auth.AuthHandler,
+	tokenService *auth.TokenService,
+	cookieService *auth.CookieService,
+	authRepo *auth.AuthRepo,
+	userRepo *user.UserRepo,
+	pollRepo *poll.PollRepo,
+	pollHandler *poll.PollHandler,
+	paginationMapper *pagination.PaginationMapper,
+	pollPaginationHandler *poll.PollPaginationHandler,
 ) *Dependencies {
 	return &Dependencies{
-		Logger:        logger,
-		AuthHandler:   authHandler,
-		TokenService:  tokenService,
-		CookieService: cookieService,
-		AuthRepo:      authRepo,
-		UserRepo:      userRepo,
-		PollRepo:      pollRepo,
-		PollHandler:   pollHandler,
+		Logger:                logger,
+		AuthHandler:           authHandler,
+		TokenService:          tokenService,
+		CookieService:         cookieService,
+		AuthRepo:              authRepo,
+		UserRepo:              userRepo,
+		PollRepo:              pollRepo,
+		PollHandler:           pollHandler,
+		PaginationMapper:      paginationMapper,
+		PollPaginationHandler: pollPaginationHandler,
 	}
 }
