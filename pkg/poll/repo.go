@@ -16,11 +16,11 @@ type PollRepo struct {
 	client *mongo.Client
 }
 
-func NewPollRepo(client *mongo.Client) (*PollRepo, error) {
-	repo := &PollRepo{client: client}
+func NewPollRepo(client *mongo.Client) (PollRepo, error) {
+	repo := PollRepo{client: client}
 	err := repo.createPollIndexes()
 	if err != nil {
-		return nil, err
+		return repo, err
 	}
 
 	return repo, nil

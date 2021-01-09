@@ -20,11 +20,11 @@ type AuthRepo struct {
 	client *mongo.Client
 }
 
-func NewAuthRepo(client *mongo.Client) (*AuthRepo, error) {
-	repo := &AuthRepo{client: client}
+func NewAuthRepo(client *mongo.Client) (AuthRepo, error) {
+	repo := AuthRepo{client: client}
 	err := repo.createUserIndexes()
 	if err != nil {
-		return nil, err
+		return repo, err
 	}
 
 	return repo, nil

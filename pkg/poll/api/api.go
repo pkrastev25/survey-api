@@ -9,11 +9,11 @@ import (
 	"survey-api/pkg/poll"
 )
 
-type dependencies struct {
-	logger                *logger.Service
+type deps struct {
+	loggerService         *logger.LoggerService
 	authHandler           *auth.AuthHandler
 	pollHandler           *poll.PollHandler
-	pollPaginationHandler *poll.PollPaginationHandler
+	pollPaginationService *poll.PollPaginationService
 }
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -23,7 +23,7 @@ func Handler() func(http.ResponseWriter, *http.Request) {
 }
 
 func Init(
-	deps *dependencies,
+	deps *deps,
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userId, err := deps.authHandler.AuthToken(r)
@@ -45,25 +45,25 @@ func Init(
 	}
 }
 
-func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *dependencies) {
+func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *deps) {
 	var createPoll poll.CreatePoll
 	err := json.NewDecoder(r.Body).Decode(&createPoll)
 	if err != nil {
-		deps.logger.LogErr(err)
+		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	poll, err := deps.pollHandler.CreatePoll(userId, createPoll)
 	if err != nil {
-		deps.logger.LogErr(err)
+		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	result, err := json.Marshal(poll.ToPollClient())
 	if err != nil {
-		deps.logger.LogErr(err)
+		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -72,17 +72,17 @@ func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *dep
 	w.Write(result)
 }
 
-func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *dependencies) {
-	query, err := deps.pollPaginationHandler.ParseQuery(r.URL.Query())
+func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *deps) {
+	query, err := deps.pollPaginationService.ParseQuery(r.URL.Query())
 	if err != nil {
-		deps.logger.LogErr(err)
+		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	polls, paginationNavigation, err := deps.pollHandler.Paginate(query)
 	if err != nil {
-		deps.logger.LogErr(err)
+		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -94,24 +94,24 @@ func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *depe
 
 	result, err := json.Marshal(pollClients)
 	if err != nil {
-		deps.logger.LogErr(err)
+		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	linkHeader, err := deps.pollPaginationHandler.CreateLinkHeader(r, paginationNavigation)
+	linkHeader, err := deps.pollPaginationService.CreateLinkHeader(r, paginationNavigation)
 	if err != nil {
-		deps.logger.LogErr(err)
+		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	deps.pollPaginationHandler.SetLinkHeader(w, linkHeader)
+	deps.pollPaginationService.SetLinkHeader(w, linkHeader)
 	w.WriteHeader(http.StatusOK)
 	w.Write(result)
 }
 
-func handleDelete(w http.ResponseWriter, r *http.Request, userId string, deps *dependencies) {
+func handleDelete(w http.ResponseWriter, r *http.Request, userId string, deps *deps) {
 	pollId := r.URL.Query().Get("id")
 	if len(pollId) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -120,7 +120,7 @@ func handleDelete(w http.ResponseWriter, r *http.Request, userId string, deps *d
 
 	err := deps.pollHandler.DeletePoll(userId, pollId)
 	if err != nil {
-		deps.logger.LogErr(err)
+		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -130,11 +130,11 @@ func handleDelete(w http.ResponseWriter, r *http.Request, userId string, deps *d
 
 func init() {
 	handler = Init(
-		&dependencies{
-			logger:                di.Container().Logger,
-			authHandler:           di.Container().AuthHandler,
-			pollHandler:           di.Container().PollHandler,
-			pollPaginationHandler: di.Container().PollPaginationHandler,
+		&deps{
+			loggerService:         di.Container().LoggerService(),
+			authHandler:           di.Container().AuthHandler(),
+			pollHandler:           di.Container().PollHandler(),
+			pollPaginationService: di.Container().PollPaginationService(),
 		},
 	)
 }

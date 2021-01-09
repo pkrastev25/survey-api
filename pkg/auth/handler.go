@@ -21,8 +21,8 @@ func NewAuthHandler(
 	authRepo *AuthRepo,
 	tokenService *TokenService,
 	cookieService *CookieService,
-) *AuthHandler {
-	return &AuthHandler{
+) AuthHandler {
+	return AuthHandler{
 		userRepo:      userRepo,
 		authRepo:      authRepo,
 		tokenService:  tokenService,

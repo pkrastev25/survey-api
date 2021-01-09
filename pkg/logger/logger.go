@@ -4,12 +4,16 @@ import (
 	"log"
 )
 
-type Service struct{}
+type LoggerService struct{}
 
-func (s *Service) Log(msg string) {
+func NewLoggerService() LoggerService {
+	return LoggerService{}
+}
+
+func (service LoggerService) Log(msg string) {
 	log.Println(msg)
 }
 
-func (s *Service) LogErr(err error) {
+func (service LoggerService) LogErr(err error) {
 	log.Println(err)
 }

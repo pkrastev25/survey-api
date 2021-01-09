@@ -15,8 +15,8 @@ type PollHandler struct {
 	paginationMapper *pagination.PaginationMapper
 }
 
-func NewPollHandler(pollRepo *PollRepo, paginationMapper *pagination.PaginationMapper) *PollHandler {
-	return &PollHandler{pollRepo: pollRepo, paginationMapper: paginationMapper}
+func NewPollHandler(pollRepo *PollRepo, paginationMapper *pagination.PaginationMapper) PollHandler {
+	return PollHandler{pollRepo: pollRepo, paginationMapper: paginationMapper}
 }
 
 func (handler PollHandler) CreatePoll(userId string, createPoll CreatePoll) (Poll, error) {

@@ -16,11 +16,11 @@ type UserRepo struct {
 	client *mongo.Client
 }
 
-func NewUserRepo(client *mongo.Client) (*UserRepo, error) {
-	repo := &UserRepo{client: client}
+func NewUserRepo(client *mongo.Client) (UserRepo, error) {
+	repo := UserRepo{client: client}
 	err := repo.createUserIndexes()
 	if err != nil {
-		return nil, err
+		return repo, err
 	}
 
 	return repo, nil

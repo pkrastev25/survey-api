@@ -1,6 +1,10 @@
 package db
 
 const (
+	PropertyCreated = "created"
+)
+
+const (
 	GreaterThan        = "$gt"
 	GreaterThanOrEqual = "$gte"
 	LessThan           = "$lt"

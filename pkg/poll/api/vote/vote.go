@@ -9,10 +9,10 @@ import (
 	"survey-api/pkg/poll"
 )
 
-type dependencies struct {
-	logger      *logger.Service
-	authHandler *auth.AuthHandler
-	pollHandler *poll.PollHandler
+type deps struct {
+	loggerService *logger.LoggerService
+	authHandler   *auth.AuthHandler
+	pollHandler   *poll.PollHandler
 }
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -22,7 +22,7 @@ func Handler() func(http.ResponseWriter, *http.Request) {
 }
 
 func Init(
-	deps *dependencies,
+	deps *deps,
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userId, err := deps.authHandler.AuthToken(r)
@@ -39,21 +39,21 @@ func Init(
 		var pollVote poll.PollVote
 		err = json.NewDecoder(r.Body).Decode(&pollVote)
 		if err != nil {
-			deps.logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		poll, err := deps.pollHandler.AddPollVote(userId, pollVote)
 		if err != nil {
-			deps.logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		result, err := json.Marshal(poll.ToPollClient())
 		if err != nil {
-			deps.logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -65,10 +65,10 @@ func Init(
 
 func init() {
 	handler = Init(
-		&dependencies{
-			logger:      di.Container().Logger,
-			authHandler: di.Container().AuthHandler,
-			pollHandler: di.Container().PollHandler,
+		&deps{
+			loggerService: di.Container().LoggerService(),
+			authHandler:   di.Container().AuthHandler(),
+			pollHandler:   di.Container().PollHandler(),
 		},
 	)
 }

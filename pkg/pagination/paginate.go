@@ -22,7 +22,7 @@ type Paginate struct {
 
 func NewPaginate() Paginate {
 	return Paginate{
-		property:  db.Created,
+		property:  db.PropertyCreated,
 		operation: db.GreaterThanOrEqual,
 		value:     dtime.NilTimeISO,
 		direction: Next,
@@ -88,7 +88,7 @@ func (paginate Paginate) Value() string {
 
 func (paginate Paginate) FormatValue() (interface{}, error) {
 	switch paginate.property {
-	case db.Created:
+	case db.PropertyCreated:
 		return dtime.ISOToDateTime(paginate.value)
 	default:
 		return nil, errors.New("")
@@ -101,7 +101,7 @@ func (paginate Paginate) Direction() string {
 
 func (paginate Paginate) Validate() error {
 	return validation.ValidateStruct(&paginate,
-		validation.Field(&paginate.property, validation.In(db.Created)),
+		validation.Field(&paginate.property, validation.In(db.PropertyCreated)),
 		validation.Field(&paginate.operation, validation.In(db.GreaterThanOrEqual, db.LessThanOrEqual)),
 		validation.Field(&paginate.value, validation.Date(dtime.ISOFormat)),
 	)

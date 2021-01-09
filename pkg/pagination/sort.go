@@ -19,7 +19,7 @@ type Sort struct {
 func NewSort() Sort {
 	return Sort{
 		order:    Ascending,
-		property: db.Created,
+		property: db.PropertyCreated,
 	}
 }
 
@@ -59,7 +59,7 @@ func (sort Sort) Order() string {
 
 func (sort Sort) Validate() error {
 	return validation.ValidateStruct(&sort,
-		validation.Field(&sort.property, validation.In(db.Created)),
+		validation.Field(&sort.property, validation.In(db.PropertyCreated)),
 		validation.Field(&sort.order, validation.In(Ascending, Descending)),
 	)
 }

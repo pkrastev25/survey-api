@@ -9,54 +9,56 @@ import (
 	"survey-api/pkg/user"
 )
 
+type deps struct {
+	loggerService *logger.LoggerService
+	cookieService *auth.CookieService
+	tokenService  *auth.TokenService
+	authRepo      *auth.AuthRepo
+	userRepo      *user.UserRepo
+	authHandler   *auth.AuthHandler
+}
+
 var handler func(http.ResponseWriter, *http.Request)
 
 func Handler() func(http.ResponseWriter, *http.Request) {
 	return handler
 }
 
-func Init(
-	logger *logger.Service,
-	cookieService *auth.CookieService,
-	tokenService *auth.TokenService,
-	authRepo *auth.AuthRepo,
-	userRepo *user.UserRepo,
-	authHandler *auth.AuthHandler,
-) func(http.ResponseWriter, *http.Request) {
+func Init(deps *deps) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		cookie, err := cookieService.ParseSessionCookie(r)
+		cookie, err := deps.cookieService.ParseSessionCookie(r)
 		if err != nil {
-			logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		sessionId, err := cookieService.ValidateSessionCookie(cookie)
+		sessionId, err := deps.cookieService.ValidateSessionCookie(cookie)
 		if err != nil {
-			logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		session, err := authRepo.FindById(sessionId)
+		session, err := deps.authRepo.FindById(sessionId)
 		if err != nil {
-			logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		var generatedCookie *http.Cookie
 		token := session.Token
-		_, err = tokenService.ValidateJwtToken(token)
+		_, err = deps.tokenService.ValidateJwtToken(token)
 		if err != nil {
-			newCookie, newToken, err := authHandler.RefreshAuth(session)
+			newCookie, newToken, err := deps.authHandler.RefreshAuth(session)
 			if err != nil {
-				logger.LogErr(err)
+				deps.loggerService.LogErr(err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -65,9 +67,9 @@ func Init(
 			token = newToken
 		}
 
-		user, err := userRepo.FindById(session.UserId.Hex())
+		user, err := deps.userRepo.FindById(session.UserId.Hex())
 		if err != nil {
-			logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -78,7 +80,7 @@ func Init(
 		}
 		result, err := json.Marshal(authUser)
 		if err != nil {
-			logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -94,11 +96,13 @@ func Init(
 
 func init() {
 	handler = Init(
-		di.Container().Logger,
-		di.Container().CookieService,
-		di.Container().TokenService,
-		di.Container().AuthRepo,
-		di.Container().UserRepo,
-		di.Container().AuthHandler,
+		&deps{
+			loggerService: di.Container().LoggerService(),
+			cookieService: di.Container().CookieService(),
+			tokenService:  di.Container().TokenService(),
+			authRepo:      di.Container().AuthRepo(),
+			userRepo:      di.Container().UserRepo(),
+			authHandler:   di.Container().AuthHandler(),
+		},
 	)
 }

@@ -9,8 +9,8 @@ import (
 type PaginationMapper struct {
 }
 
-func NewPaginationMapper() *PaginationMapper {
-	return &PaginationMapper{}
+func NewPaginationMapper() PaginationMapper {
+	return PaginationMapper{}
 }
 
 func (mapper PaginationMapper) PaginateToDb(paginate Paginate) (bson.M, error) {

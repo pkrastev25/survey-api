@@ -23,8 +23,8 @@ type cookieStore struct {
 	SessionId string `json:"session_id"`
 }
 
-func NewCookieService() *CookieService {
-	return &CookieService{}
+func NewCookieService() CookieService {
+	return CookieService{}
 }
 
 func (service CookieService) ParseSessionCookie(r *http.Request) (http.Cookie, error) {

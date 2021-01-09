@@ -8,54 +8,56 @@ import (
 	"survey-api/pkg/logger"
 )
 
+type deps struct {
+	loggerService *logger.LoggerService
+	authHandler   *auth.AuthHandler
+	authRepo      *auth.AuthRepo
+	tokenService  *auth.TokenService
+	cookieService *auth.CookieService
+}
+
 var handler func(http.ResponseWriter, *http.Request)
 
 func Handler() func(http.ResponseWriter, *http.Request) {
 	return handler
 }
 
-func Init(
-	logger *logger.Service,
-	authHandler *auth.AuthHandler,
-	authRepo *auth.AuthRepo,
-	tokenService *auth.TokenService,
-	cookieService *auth.CookieService,
-) func(http.ResponseWriter, *http.Request) {
+func Init(deps *deps) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		token, err := tokenService.ParseJwtToken(r)
+		token, err := deps.tokenService.ParseJwtToken(r)
 		if err != nil {
-			logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		_, err = tokenService.ValidateJwtToken(token)
+		_, err = deps.tokenService.ValidateJwtToken(token)
 		if err != nil {
-			logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		session, err := authRepo.FindOne(db.NewQueryBuilder().Equal("token", token))
+		session, err := deps.authRepo.FindOne(db.NewQueryBuilder().Equal("token", token))
 		if err != nil {
-			logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		err = authRepo.DeleteOne(session)
+		err = deps.authRepo.DeleteOne(session)
 		if err != nil {
-			logger.LogErr(err)
+			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		cookie := cookieService.GenerateExpiredCookie()
+		cookie := deps.cookieService.GenerateExpiredCookie()
 		http.SetCookie(w, &cookie)
 		w.WriteHeader(http.StatusOK)
 	}
@@ -63,10 +65,12 @@ func Init(
 
 func init() {
 	handler = Init(
-		di.Container().Logger,
-		di.Container().AuthHandler,
-		di.Container().AuthRepo,
-		di.Container().TokenService,
-		di.Container().CookieService,
+		&deps{
+			loggerService: di.Container().LoggerService(),
+			authHandler:   di.Container().AuthHandler(),
+			authRepo:      di.Container().AuthRepo(),
+			tokenService:  di.Container().TokenService(),
+			cookieService: di.Container().CookieService(),
+		},
 	)
 }

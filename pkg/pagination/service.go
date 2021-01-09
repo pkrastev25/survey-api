@@ -14,10 +14,14 @@ const (
 	queryLimit    = "limit"
 )
 
-type PaginationHandler struct {
+type PaginationService struct {
 }
 
-func (handler PaginationHandler) ParseQuery(queries url.Values) (Query, error) {
+func NewPaginationService() PaginationService {
+	return PaginationService{}
+}
+
+func (service PaginationService) ParseQuery(queries url.Values) (Query, error) {
 	paginateString := queries.Get(queryPaginate)
 	sortString := queries.Get(querySort)
 	limitString := queries.Get(queryLimit)
@@ -33,7 +37,7 @@ func (handler PaginationHandler) ParseQuery(queries url.Values) (Query, error) {
 	}
 
 	if len(paginateString) > 0 {
-		paginate, err := handler.parsePaginateQuery(paginateString)
+		paginate, err := service.parsePaginateQuery(paginateString)
 		if err != nil {
 			return query, err
 		}
@@ -45,7 +49,7 @@ func (handler PaginationHandler) ParseQuery(queries url.Values) (Query, error) {
 	}
 
 	if len(sortString) > 0 {
-		sort, err := handler.parseSortQuery(sortString)
+		sort, err := service.parseSortQuery(sortString)
 		if err != nil {
 			return query, err
 		}
@@ -56,7 +60,7 @@ func (handler PaginationHandler) ParseQuery(queries url.Values) (Query, error) {
 	return query, nil
 }
 
-func (handler PaginationHandler) parsePaginateQuery(query string) (Paginate, error) {
+func (service PaginationService) parsePaginateQuery(query string) (Paginate, error) {
 	var paginate Paginate
 	values := strings.Split(query, ",")
 	if len(values) < 3 {
@@ -70,7 +74,7 @@ func (handler PaginationHandler) parsePaginateQuery(query string) (Paginate, err
 	return NewPaginateAll(values[0], values[1], values[2]), nil
 }
 
-func (handler PaginationHandler) parseSortQuery(query string) (Sort, error) {
+func (service PaginationService) parseSortQuery(query string) (Sort, error) {
 	var sort Sort
 	values := strings.Split(query, ",")
 	if len(values) < 2 {
@@ -84,7 +88,7 @@ func (handler PaginationHandler) parseSortQuery(query string) (Sort, error) {
 	return NewSortAll(values[0], values[1]), nil
 }
 
-func (handler PaginationHandler) CreateLinkHeader(r *http.Request, pagination map[string]Query) string {
+func (service PaginationService) CreateLinkHeader(r *http.Request, pagination map[string]Query) string {
 	var linkHeader string
 	if len(pagination) <= 0 {
 		return linkHeader
@@ -98,26 +102,26 @@ func (handler PaginationHandler) CreateLinkHeader(r *http.Request, pagination ma
 	var linkHeaderEntries []string
 	url := protocol + r.Host + r.URL.Path
 	for navigation, query := range pagination {
-		queries := handler.QueryStrings(query)
+		queries := service.QueryStrings(query)
 		linkHeaderEntries = append(linkHeaderEntries, "<"+url+"?"+strings.Join(queries, "&")+">; rel="+navigation)
 	}
 
 	return strings.Join(linkHeaderEntries, ",")
 }
 
-func (handler PaginationHandler) QueryStrings(query Query) []string {
+func (service PaginationService) QueryStrings(query Query) []string {
 	var queries []string
-	paginate := handler.paginateQueryString(query.Paginate())
+	paginate := service.paginateQueryString(query.Paginate())
 	if len(paginate) > 0 {
 		queries = append(queries, paginate)
 	}
 
-	sort := handler.sortQueryString(query.Sort())
+	sort := service.sortQueryString(query.Sort())
 	if len(sort) > 0 {
 		queries = append(queries, sort)
 	}
 
-	limit := handler.limitQueryString(query.Limit())
+	limit := service.limitQueryString(query.Limit())
 	if len(limit) > 0 {
 		queries = append(queries, limit)
 	}
@@ -125,17 +129,17 @@ func (handler PaginationHandler) QueryStrings(query Query) []string {
 	return queries
 }
 
-func (handler PaginationHandler) paginateQueryString(paginate Paginate) string {
+func (service PaginationService) paginateQueryString(paginate Paginate) string {
 	values := []string{string(paginate.Property()), string(paginate.Operation()), paginate.Value()}
 	return queryPaginate + "=" + strings.Join(values, ",")
 }
 
-func (handler PaginationHandler) sortQueryString(sort Sort) string {
+func (service PaginationService) sortQueryString(sort Sort) string {
 	values := []string{string(sort.Property()), string(sort.Order())}
 	return querySort + "=" + strings.Join(values, ",")
 }
 
-func (handler PaginationHandler) limitQueryString(limit int) string {
+func (service PaginationService) limitQueryString(limit int) string {
 	if limit <= 0 {
 		return ""
 	}
@@ -143,7 +147,7 @@ func (handler PaginationHandler) limitQueryString(limit int) string {
 	return queryLimit + "=" + strconv.Itoa(limit)
 }
 
-func (handler PaginationHandler) SetLinkHeader(w http.ResponseWriter, linkHeader string) {
+func (service PaginationService) SetLinkHeader(w http.ResponseWriter, linkHeader string) {
 	if len(linkHeader) <= 0 {
 		return
 	}

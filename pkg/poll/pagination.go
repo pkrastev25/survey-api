@@ -11,17 +11,17 @@ const (
 	querySearch = "search"
 )
 
-type PollPaginationHandler struct {
-	base pagination.PaginationHandler
+type PollPaginationService struct {
+	base pagination.PaginationService
 }
 
-func NewPollPaginationHandler() *PollPaginationHandler {
-	return &PollPaginationHandler{}
+func NewPollPaginationService() PollPaginationService {
+	return PollPaginationService{base: pagination.NewPaginationService()}
 }
 
-func (handler PollPaginationHandler) ParseQuery(queries url.Values) (QueryPoll, error) {
+func (service PollPaginationService) ParseQuery(queries url.Values) (QueryPoll, error) {
 	queryPoll := NewQueryPoll()
-	query, err := handler.base.ParseQuery(queries)
+	query, err := service.base.ParseQuery(queries)
 	if err != nil {
 		return queryPoll, err
 	}
@@ -35,7 +35,7 @@ func (handler PollPaginationHandler) ParseQuery(queries url.Values) (QueryPoll, 
 	return queryPoll, nil
 }
 
-func (handler PollPaginationHandler) searchQueryString(search string) string {
+func (service PollPaginationService) searchQueryString(search string) string {
 	if len(search) <= 0 {
 		return ""
 	}
@@ -43,9 +43,9 @@ func (handler PollPaginationHandler) searchQueryString(search string) string {
 	return querySearch + "=" + search
 }
 
-func (handler PollPaginationHandler) queryStrings(queryPoll QueryPoll) []string {
-	queries := handler.base.QueryStrings(queryPoll.base)
-	search := handler.searchQueryString(queryPoll.Search())
+func (service PollPaginationService) queryStrings(queryPoll QueryPoll) []string {
+	queries := service.base.QueryStrings(queryPoll.base)
+	search := service.searchQueryString(queryPoll.Search())
 	if len(search) > 0 {
 		queries = append(queries, search)
 	}
@@ -53,7 +53,7 @@ func (handler PollPaginationHandler) queryStrings(queryPoll QueryPoll) []string 
 	return queries
 }
 
-func (handler PollPaginationHandler) CreateLinkHeader(r *http.Request, pagination map[string]QueryPoll) (string, error) {
+func (service PollPaginationService) CreateLinkHeader(r *http.Request, pagination map[string]QueryPoll) (string, error) {
 	var linkHeader string
 	if len(pagination) <= 0 {
 		return linkHeader, nil
@@ -67,14 +67,14 @@ func (handler PollPaginationHandler) CreateLinkHeader(r *http.Request, paginatio
 	var linkHeaderParts []string
 	url := protocol + r.Host + r.URL.Path
 	for navigation, query := range pagination {
-		queries := handler.queryStrings(query)
+		queries := service.queryStrings(query)
 		linkHeaderParts = append(linkHeaderParts, "<"+url+"?"+strings.Join(queries, "&")+">; rel="+navigation)
 	}
 
 	return strings.Join(linkHeaderParts, ","), nil
 }
 
-func (handler PollPaginationHandler) SetLinkHeader(w http.ResponseWriter, linkHeader string) {
+func (service PollPaginationService) SetLinkHeader(w http.ResponseWriter, linkHeader string) {
 	if len(linkHeader) <= 0 {
 		return
 	}
