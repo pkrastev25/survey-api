@@ -3,7 +3,6 @@ package logout
 import (
 	"net/http"
 	"survey-api/pkg/auth"
-	"survey-api/pkg/db"
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
 )
@@ -14,6 +13,8 @@ type deps struct {
 	authRepo      *auth.AuthRepo
 	tokenService  *auth.TokenService
 	cookieService *auth.CookieService
+	authService   *auth.AuthService
+	authMapper    *auth.AuthMapper
 }
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -29,31 +30,17 @@ func Init(deps *deps) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		token, err := deps.tokenService.ParseJwtToken(r)
-		if err != nil {
-			deps.loggerService.LogErr(err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		_, err = deps.tokenService.ValidateJwtToken(token)
-		if err != nil {
-			deps.loggerService.LogErr(err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		session, err := deps.authRepo.FindOne(db.NewQueryBuilder().Equal("token", token))
+		userId, err := deps.authService.AuthToken(r)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		err = deps.authRepo.DeleteOne(session)
+		err = deps.authHandler.Logout(userId)
 		if err != nil {
 			deps.loggerService.LogErr(err)
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
@@ -71,6 +58,8 @@ func init() {
 			authRepo:      di.Container().AuthRepo(),
 			tokenService:  di.Container().TokenService(),
 			cookieService: di.Container().CookieService(),
+			authService:   di.Container().AuthService(),
+			authMapper:    di.Container().AuthMapper(),
 		},
 	)
 }

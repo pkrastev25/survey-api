@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"errors"
 	"survey-api/pkg/db"
 	"time"
 
@@ -12,6 +11,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+const (
+	CollectionUser = "user"
+)
+
 type UserRepo struct {
 	client *mongo.Client
 }
@@ -19,11 +22,7 @@ type UserRepo struct {
 func NewUserRepo(client *mongo.Client) (UserRepo, error) {
 	repo := UserRepo{client: client}
 	err := repo.createUserIndexes()
-	if err != nil {
-		return repo, err
-	}
-
-	return repo, nil
+	return repo, err
 }
 
 func (repo UserRepo) InsertOne(user User) (User, error) {
@@ -34,12 +33,7 @@ func (repo UserRepo) InsertOne(user User) (User, error) {
 		return user, err
 	}
 
-	id, ok := result.InsertedID.(primitive.ObjectID)
-	if !ok {
-		return user, errors.New("")
-	}
-
-	user.Id = id
+	user.Id = result.InsertedID.(primitive.ObjectID)
 	return user, nil
 }
 
@@ -50,7 +44,7 @@ func (repo UserRepo) FindById(userIdString string) (User, error) {
 		return user, err
 	}
 
-	return repo.FindOne(db.NewQueryBuilder().Equal("_id", userId))
+	return repo.FindOne(db.NewQueryBuilder().Equal(db.PropertyId, userId))
 }
 
 func (repo UserRepo) FindOne(query db.QueryBuilder) (User, error) {
@@ -64,15 +58,11 @@ func (repo UserRepo) FindOne(query db.QueryBuilder) (User, error) {
 	}
 
 	err = result.Decode(&user)
-	if err != nil {
-		return user, err
-	}
-
-	return user, nil
+	return user, err
 }
 
 func (repo UserRepo) userCollection() *mongo.Collection {
-	return repo.client.Database("survey").Collection("user")
+	return repo.client.Database(db.DbSurvey).Collection(CollectionUser)
 }
 
 func (repo UserRepo) createUserIndexes() error {
@@ -90,9 +80,5 @@ func (repo UserRepo) createUserIndexes() error {
 	context, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err := collection.Indexes().CreateMany(context, indexes)
 	defer cancel()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

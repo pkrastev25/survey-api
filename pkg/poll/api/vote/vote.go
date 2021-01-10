@@ -11,8 +11,9 @@ import (
 
 type deps struct {
 	loggerService *logger.LoggerService
-	authHandler   *auth.AuthHandler
+	authService   *auth.AuthService
 	pollHandler   *poll.PollHandler
+	pollMapper    *poll.PollMapper
 }
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -25,7 +26,7 @@ func Init(
 	deps *deps,
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userId, err := deps.authHandler.AuthToken(r)
+		userId, err := deps.authService.AuthToken(r)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -51,7 +52,8 @@ func Init(
 			return
 		}
 
-		result, err := json.Marshal(poll.ToPollClient())
+		pollDetails := deps.pollMapper.ToPollDetails(poll)
+		result, err := json.Marshal(pollDetails)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -67,8 +69,9 @@ func init() {
 	handler = Init(
 		&deps{
 			loggerService: di.Container().LoggerService(),
-			authHandler:   di.Container().AuthHandler(),
+			authService:   di.Container().AuthService(),
 			pollHandler:   di.Container().PollHandler(),
+			pollMapper:    di.Container().PollMapper(),
 		},
 	)
 }

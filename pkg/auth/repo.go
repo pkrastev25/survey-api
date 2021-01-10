@@ -23,15 +23,11 @@ type AuthRepo struct {
 func NewAuthRepo(client *mongo.Client) (AuthRepo, error) {
 	repo := AuthRepo{client: client}
 	err := repo.createUserIndexes()
-	if err != nil {
-		return repo, err
-	}
-
-	return repo, nil
+	return repo, err
 }
 
 func (repo AuthRepo) InsertOne(session Session) (Session, error) {
-	session.LastModified = dtime.DateTimeNow()
+	session.UpdateLastModified()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -51,7 +47,7 @@ func (repo AuthRepo) FindById(sessionIdString string) (Session, error) {
 		return session, err
 	}
 
-	return repo.FindOne(db.NewQueryBuilder().Equal("_id", sessionId))
+	return repo.FindOne(db.NewQueryBuilder().Equal(db.PropertyId, sessionId))
 }
 
 func (repo AuthRepo) FindOne(query db.QueryBuilder) (Session, error) {
@@ -68,9 +64,15 @@ func (repo AuthRepo) FindOne(query db.QueryBuilder) (Session, error) {
 	return session, err
 }
 
+func (repo AuthRepo) Execute(pipeline db.PipelineBuilder) (*mongo.Cursor, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return repo.sessionCollection().Aggregate(ctx, pipeline.Build())
+}
+
 func (repo AuthRepo) UpdateOne(filter db.QueryBuilder, updates db.QueryBuilder) (Session, error) {
 	var session Session
-	updates.Set("last_modified", dtime.DateTimeNow())
+	updates.Set(db.PropertyLastModified, dtime.DateTimeNow())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -92,8 +94,15 @@ func (repo AuthRepo) DeleteOne(session Session) error {
 	return result.Err()
 }
 
+func (repo AuthRepo) DeleteMany(query db.QueryBuilder) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, err := repo.sessionCollection().DeleteMany(ctx, query.Build())
+	return int(result.DeletedCount), err
+}
+
 func (repo AuthRepo) sessionCollection() *mongo.Collection {
-	return repo.client.Database("survey").Collection("session")
+	return repo.client.Database(db.DbSurvey).Collection("session")
 }
 
 func (repo AuthRepo) createUserIndexes() error {
@@ -105,17 +114,10 @@ func (repo AuthRepo) createUserIndexes() error {
 				int32(sessionValiditySeconds),
 			),
 		},
-		{
-			Keys: bson.M{"token": "text"},
-		},
 	}
 
 	context, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err := collection.Indexes().CreateMany(context, indexes)
 	defer cancel()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

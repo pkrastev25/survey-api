@@ -1,7 +1,13 @@
 package db
 
 const (
-	PropertyCreated = "created"
+	DbSurvey = "survey"
+)
+
+const (
+	PropertyId           = "_id"
+	PropertyCreated      = "created"
+	PropertyLastModified = "last_modified"
 )
 
 const (

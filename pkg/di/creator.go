@@ -82,6 +82,7 @@ func createAuthHandler() *auth.AuthHandler {
 		deps.AuthRepo(),
 		deps.TokenService(),
 		deps.CookieService(),
+		deps.AuthMapper(),
 	)
 	return &authHandler
 }
@@ -90,6 +91,23 @@ func createPollHandler() *poll.PollHandler {
 	pollhandler := poll.NewPollHandler(
 		deps.PollRepo(),
 		deps.PaginationMapper(),
+		deps.PollMapper(),
 	)
 	return &pollhandler
+}
+
+func createAuthService() *auth.AuthService {
+	authService := auth.NewAuthService(
+		deps.TokenService(),
+		deps.CookieService(),
+		deps.AuthRepo(),
+	)
+	return &authService
+}
+
+func createAuthMapper() *auth.AuthMapper {
+	authMapper := auth.NewAuthMapper(
+		deps.UserMapper(),
+	)
+	return &authMapper
 }

@@ -22,13 +22,17 @@ type Dependencies struct {
 	loggerService         *logger.LoggerService
 	tokenService          *auth.TokenService
 	cookieService         *auth.CookieService
+	authService           *auth.AuthService
+	pollPaginationService *poll.PollPaginationService
 	authRepo              *auth.AuthRepo
 	userRepo              *user.UserRepo
 	pollRepo              *poll.PollRepo
 	authHandler           *auth.AuthHandler
 	pollHandler           *poll.PollHandler
+	authMapper            *auth.AuthMapper
+	userMapper            *user.UserMapper
+	pollMapper            *poll.PollMapper
 	paginationMapper      *pagination.PaginationMapper
-	pollPaginationService *poll.PollPaginationService
 }
 
 func init() {
@@ -153,4 +157,46 @@ func (deps *Dependencies) PollPaginationService() *poll.PollPaginationService {
 	}
 
 	return deps.pollPaginationService
+}
+
+func (deps *Dependencies) PollMapper() *poll.PollMapper {
+	if deps.pollMapper == nil {
+		syncOnceStore[11].Do(func() {
+			pollMapper := poll.NewPollMapper()
+			deps.pollMapper = &pollMapper
+		})
+	}
+
+	return deps.pollMapper
+}
+
+func (deps *Dependencies) AuthMapper() *auth.AuthMapper {
+	if deps.authMapper == nil {
+		syncOnceStore[12].Do(func() {
+			deps.authMapper = createAuthMapper()
+		})
+	}
+
+	return deps.authMapper
+}
+
+func (deps *Dependencies) UserMapper() *user.UserMapper {
+	if deps.userMapper == nil {
+		syncOnceStore[13].Do(func() {
+			userMapper := user.NewUserMapper()
+			deps.userMapper = &userMapper
+		})
+	}
+
+	return deps.userMapper
+}
+
+func (deps *Dependencies) AuthService() *auth.AuthService {
+	if deps.authService == nil {
+		syncOnceStore[14].Do(func() {
+			deps.authService = createAuthService()
+		})
+	}
+
+	return deps.authService
 }

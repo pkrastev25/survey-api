@@ -13,20 +13,29 @@ import (
 type PollHandler struct {
 	pollRepo         *PollRepo
 	paginationMapper *pagination.PaginationMapper
+	pollMapper       *PollMapper
 }
 
-func NewPollHandler(pollRepo *PollRepo, paginationMapper *pagination.PaginationMapper) PollHandler {
-	return PollHandler{pollRepo: pollRepo, paginationMapper: paginationMapper}
+func NewPollHandler(
+	pollRepo *PollRepo,
+	paginationMapper *pagination.PaginationMapper,
+	pollMapper *PollMapper,
+) PollHandler {
+	return PollHandler{
+		pollRepo:         pollRepo,
+		paginationMapper: paginationMapper,
+		pollMapper:       pollMapper,
+	}
 }
 
-func (handler PollHandler) CreatePoll(userId string, createPoll CreatePoll) (Poll, error) {
+func (handler PollHandler) CreatePoll(userId string, pollCreate PollCreate) (Poll, error) {
 	var poll Poll
-	err := createPoll.Validate()
+	err := pollCreate.Validate()
 	if err != nil {
 		return poll, err
 	}
 
-	poll, err = createPoll.ToPoll(userId)
+	poll, err = handler.pollMapper.ToPoll(pollCreate, userId)
 	if err != nil {
 		return poll, err
 	}
@@ -45,7 +54,7 @@ func (handler PollHandler) Paginate(query QueryPoll) ([]Poll, map[string]QueryPo
 		return nil, nil, err
 	}
 
-	cursor, err := handler.pollRepo.FindMany(pipeline)
+	cursor, err := handler.pollRepo.Execute(pipeline)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -137,8 +146,8 @@ func (handler PollHandler) AddPollVote(userIdString string, pollVote PollVote) (
 		return poll, err
 	}
 
-	filter := db.NewQueryBuilder().Equal("_id", pollId).NotIn("voter_ids", []interface{}{userId})
-	updates := db.NewQueryBuilder().AddToSet("voter_ids", userId).Increment("options."+pollVote.Index+".count", 1)
+	filter := db.NewQueryBuilder().Equal(db.PropertyId, pollId).NotIn(propertyVoterIds, []interface{}{userId})
+	updates := db.NewQueryBuilder().AddToSet(propertyVoterIds, userId).Increment(propertOptions+"."+pollVote.Index+"."+propertyCount, 1)
 	return handler.pollRepo.UpdateOne(filter, updates)
 }
 
@@ -153,6 +162,6 @@ func (handler PollHandler) DeletePoll(userIdString string, pollIdString string) 
 		return err
 	}
 
-	filters := db.NewQueryBuilder().Equal("_id", pollId).Equal("creator_id", userId)
+	filters := db.NewQueryBuilder().Equal(db.PropertyId, pollId).Equal(propertCreatorId, userId)
 	return handler.pollRepo.DeleteOne(filters)
 }

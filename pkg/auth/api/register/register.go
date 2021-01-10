@@ -6,12 +6,13 @@ import (
 	"survey-api/pkg/auth"
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
-	"survey-api/pkg/user"
 )
 
 type deps struct {
 	loggerService *logger.LoggerService
+	authService   *auth.AuthService
 	authHandler   *auth.AuthHandler
+	authMapper    *auth.AuthMapper
 }
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -27,34 +28,30 @@ func Init(deps *deps) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		var registerUser user.RegisterUser
-		err := json.NewDecoder(r.Body).Decode(&registerUser)
+		var userRegister auth.UserRegister
+		err := json.NewDecoder(r.Body).Decode(&userRegister)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		user := registerUser.ToUser()
-		user, err = deps.authHandler.Register(registerUser)
+		user, err := deps.authHandler.Register(userRegister)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		cookie, token, err := deps.authHandler.GenerateAuth(user)
+		cookie, token, err := deps.authService.GenerateAuthUser(user)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		authUser := auth.AuthUser{
-			Token: token,
-			User:  user.ToClientUser(),
-		}
-		result, err := json.Marshal(authUser)
+		userAuth := deps.authMapper.ToUserAuth(token, user)
+		result, err := json.Marshal(userAuth)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -71,7 +68,9 @@ func init() {
 	handler = Init(
 		&deps{
 			loggerService: di.Container().LoggerService(),
+			authService:   di.Container().AuthService(),
 			authHandler:   di.Container().AuthHandler(),
+			authMapper:    di.Container().AuthMapper(),
 		},
 	)
 }

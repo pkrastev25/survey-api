@@ -19,15 +19,11 @@ type PollRepo struct {
 func NewPollRepo(client *mongo.Client) (PollRepo, error) {
 	repo := PollRepo{client: client}
 	err := repo.createPollIndexes()
-	if err != nil {
-		return repo, err
-	}
-
-	return repo, nil
+	return repo, err
 }
 
 func (repo PollRepo) InsertOne(poll Poll) (Poll, error) {
-	poll.LastModified = dtime.DateTimeNow()
+	poll.UpdateLastModified()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -47,7 +43,7 @@ func (repo PollRepo) FindById(pollIdString string) (Poll, error) {
 		return poll, err
 	}
 
-	return repo.FindOne(db.NewQueryBuilder().Equal("_id", pollId))
+	return repo.FindOne(db.NewQueryBuilder().Equal(db.PropertyId, pollId))
 }
 
 func (repo PollRepo) FindOne(query db.QueryBuilder) (Poll, error) {
@@ -61,14 +57,10 @@ func (repo PollRepo) FindOne(query db.QueryBuilder) (Poll, error) {
 	}
 
 	err = result.Decode(&poll)
-	if err != nil {
-		return poll, err
-	}
-
-	return poll, nil
+	return poll, err
 }
 
-func (repo PollRepo) FindMany(pipeline db.PipelineBuilder) (*mongo.Cursor, error) {
+func (repo PollRepo) Execute(pipeline db.PipelineBuilder) (*mongo.Cursor, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	return repo.pollCollection().Aggregate(ctx, pipeline.Build())
@@ -76,7 +68,7 @@ func (repo PollRepo) FindMany(pipeline db.PipelineBuilder) (*mongo.Cursor, error
 
 func (repo PollRepo) UpdateOne(filter db.QueryBuilder, updates db.QueryBuilder) (Poll, error) {
 	var poll Poll
-	updates.Set("last_modified", dtime.DateTimeNow())
+	updates.Set(db.PropertyLastModified, dtime.DateTimeNow())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -88,27 +80,18 @@ func (repo PollRepo) UpdateOne(filter db.QueryBuilder, updates db.QueryBuilder) 
 	}
 
 	err = result.Decode(&poll)
-	if err != nil {
-		return poll, err
-	}
-
-	return poll, nil
+	return poll, err
 }
 
 func (repo PollRepo) DeleteOne(filter db.QueryBuilder) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	result := repo.pollCollection().FindOneAndDelete(ctx, filter.Build())
-	err := result.Err()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return result.Err()
 }
 
 func (repo PollRepo) pollCollection() *mongo.Collection {
-	return repo.client.Database("survey").Collection("poll")
+	return repo.client.Database(db.DbSurvey).Collection("poll")
 }
 
 func (repo PollRepo) createPollIndexes() error {
@@ -122,9 +105,5 @@ func (repo PollRepo) createPollIndexes() error {
 	context, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := collection.Indexes().CreateMany(context, indexes)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

@@ -40,3 +40,8 @@ func (builder PipelineBuilder) TextSearchStage(search string) PipelineBuilder {
 	builder.pipeline = append(builder.pipeline, bson.M{operationText: bson.M{operationSearch: search}})
 	return builder
 }
+
+func (builder PipelineBuilder) SetStage(property string, value interface{}) PipelineBuilder {
+	builder.pipeline = append(builder.pipeline, bson.M{operationSet: bson.M{property: value}})
+	return builder
+}

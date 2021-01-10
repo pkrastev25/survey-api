@@ -11,9 +11,10 @@ import (
 
 type deps struct {
 	loggerService         *logger.LoggerService
-	authHandler           *auth.AuthHandler
-	pollHandler           *poll.PollHandler
 	pollPaginationService *poll.PollPaginationService
+	authService           *auth.AuthService
+	pollHandler           *poll.PollHandler
+	pollMapper            *poll.PollMapper
 }
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -26,7 +27,7 @@ func Init(
 	deps *deps,
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userId, err := deps.authHandler.AuthToken(r)
+		userId, err := deps.authService.AuthToken(r)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -46,22 +47,23 @@ func Init(
 }
 
 func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *deps) {
-	var createPoll poll.CreatePoll
-	err := json.NewDecoder(r.Body).Decode(&createPoll)
+	var pollCreate poll.PollCreate
+	err := json.NewDecoder(r.Body).Decode(&pollCreate)
 	if err != nil {
 		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	poll, err := deps.pollHandler.CreatePoll(userId, createPoll)
+	poll, err := deps.pollHandler.CreatePoll(userId, pollCreate)
 	if err != nil {
 		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	result, err := json.Marshal(poll.ToPollClient())
+	pollDetails := deps.pollMapper.ToPollDetails(poll)
+	result, err := json.Marshal(pollDetails)
 	if err != nil {
 		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -87,12 +89,8 @@ func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *deps
 		return
 	}
 
-	pollClients := make([]poll.PollClient, len(polls))
-	for index := range polls {
-		pollClients[index] = polls[index].ToPollClient()
-	}
-
-	result, err := json.Marshal(pollClients)
+	pollLists := deps.pollMapper.ToPollLists(polls)
+	result, err := json.Marshal(pollLists)
 	if err != nil {
 		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -131,10 +129,11 @@ func handleDelete(w http.ResponseWriter, r *http.Request, userId string, deps *d
 func init() {
 	handler = Init(
 		&deps{
-			loggerService:         di.Container().LoggerService(),
-			authHandler:           di.Container().AuthHandler(),
-			pollHandler:           di.Container().PollHandler(),
 			pollPaginationService: di.Container().PollPaginationService(),
+			loggerService:         di.Container().LoggerService(),
+			authService:           di.Container().AuthService(),
+			pollHandler:           di.Container().PollHandler(),
+			pollMapper:            di.Container().PollMapper(),
 		},
 	)
 }

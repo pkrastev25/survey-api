@@ -1,10 +1,14 @@
 package auth
 
 import (
+	"context"
 	"errors"
-	"net/http"
 	"survey-api/pkg/db"
+	"survey-api/pkg/dtime"
 	"survey-api/pkg/user"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -14,6 +18,7 @@ type AuthHandler struct {
 	authRepo      *AuthRepo
 	tokenService  *TokenService
 	cookieService *CookieService
+	authMapper    *AuthMapper
 }
 
 func NewAuthHandler(
@@ -21,105 +26,94 @@ func NewAuthHandler(
 	authRepo *AuthRepo,
 	tokenService *TokenService,
 	cookieService *CookieService,
+	authMapper *AuthMapper,
 ) AuthHandler {
 	return AuthHandler{
 		userRepo:      userRepo,
 		authRepo:      authRepo,
 		tokenService:  tokenService,
 		cookieService: cookieService,
+		authMapper:    authMapper,
 	}
 }
 
-func (handler AuthHandler) Register(registerUser user.RegisterUser) (user.User, error) {
+func (handler AuthHandler) Register(userRegister UserRegister) (user.User, error) {
 	var user user.User
-	err := registerUser.Validate()
+	err := userRegister.Validate()
 	if err != nil {
 		return user, err
 	}
 
-	user = registerUser.ToUser()
+	user = handler.authMapper.ToUser(userRegister)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return user, err
 	}
 
 	user.Password = string(hashedPassword)
-	user, err = handler.userRepo.InsertOne(user)
-	if err != nil {
-		return user, err
-	}
-
-	return user, nil
+	return handler.userRepo.InsertOne(user)
 }
 
-func (handler AuthHandler) VerifyUserCredentials(loginUser user.LoginUser) (user.User, error) {
-	var user user.User
-	err := loginUser.Validate()
+func (handler AuthHandler) Login(userLogin UserLogin) (user.User, error) {
+	var userModel user.User
+	err := userLogin.Validate()
 	if err != nil {
-		return user, err
+		return userModel, err
 	}
 
-	user, err = handler.userRepo.FindOne(db.NewQueryBuilder().Equal("user_name", loginUser.UserName))
+	userModel, err = handler.userRepo.FindOne(db.NewQueryBuilder().Equal(user.PropertyUserName, userLogin.UserName))
 	if err != nil {
-		return user, err
+		return userModel, err
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginUser.Password))
-	if err != nil {
-		return user, err
-	}
-
-	return user, nil
+	err = bcrypt.CompareHashAndPassword([]byte(userModel.Password), []byte(userLogin.Password))
+	return userModel, err
 }
 
-func (handler AuthHandler) AuthToken(r *http.Request) (string, error) {
-	token, err := handler.tokenService.ParseJwtToken(r)
+func (handler AuthHandler) RefreshSession(sessionIdString string) (Session, user.User, error) {
+	var session Session
+	var userModel user.User
+	sessionId, err := primitive.ObjectIDFromHex(sessionIdString)
 	if err != nil {
-		return "", errors.New("Malformed token")
+		return session, userModel, err
 	}
 
-	userId, err := handler.tokenService.ValidateJwtToken(token)
+	pipeline := db.NewPipelineBuilder().MatchStage(db.PropertyId, sessionId).SetStage(db.PropertyLastModified, dtime.DateTimeNow()).LookUpStage(user.CollectionUser, propertyUserId, db.PropertyId, "user")
+	cursor, err := handler.authRepo.Execute(pipeline)
 	if err != nil {
-		return "", err
+		return session, userModel, err
 	}
 
-	return userId, nil
+	var results = []struct {
+		Session Session     `bson:",inline"`
+		User    []user.User `bson:"user"`
+	}{}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err = cursor.All(ctx, &results)
+	if err != nil {
+		return session, userModel, err
+	}
+
+	if len(results) <= 0 {
+		return session, userModel, errors.New("")
+	}
+
+	result := results[0]
+	if len(result.User) <= 0 {
+		return session, userModel, errors.New("")
+	}
+
+	return result.Session, result.User[0], nil
 }
 
-func (handler AuthHandler) GenerateAuth(user user.User) (http.Cookie, string, error) {
-	var cookie http.Cookie
-	session := Session{
-		UserId: user.Id,
-	}
-	token, err := handler.tokenService.GenerateJwtToken(session.UserId.Hex())
+func (handler AuthHandler) Logout(userIdString string) error {
+	userId, err := primitive.ObjectIDFromHex(userIdString)
 	if err != nil {
-		return cookie, "", err
+		return err
 	}
 
-	session.Token = token
-	session, err = handler.authRepo.InsertOne(session)
-	if err != nil {
-		return cookie, "", err
-	}
-
-	cookie, err = handler.cookieService.GenerateSessionCookie(session)
-	return cookie, token, err
-}
-
-func (handler AuthHandler) RefreshAuth(session Session) (http.Cookie, string, error) {
-	var cookie http.Cookie
-	token, err := handler.tokenService.GenerateJwtToken(session.UserId.Hex())
-	if err != nil {
-		return cookie, "", err
-	}
-
-	filter := db.NewQueryBuilder().Equal("_id", session.Id)
-	updates := db.NewQueryBuilder().Set("token", token)
-	session, err = handler.authRepo.UpdateOne(filter, updates)
-	if err != nil {
-		return cookie, "", err
-	}
-
-	cookie, err = handler.cookieService.GenerateSessionCookie(session)
-	return cookie, token, err
+	filter := db.NewQueryBuilder().Equal(propertyUserId, userId)
+	_, err = handler.authRepo.DeleteMany(filter)
+	return err
 }
