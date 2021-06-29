@@ -21,11 +21,17 @@ func (mapper PollMapper) ToPoll(pollCreate PollCreate, userId string) (Poll, err
 		return poll, err
 	}
 
+	closedAt, err := dtime.ISOToDateTime(pollCreate.CloseAt)
+	if err != nil {
+		return poll, err
+	}
+
 	poll = Poll{
 		CreatorId:  creatorId,
 		Content:    pollCreate.Content,
 		Options:    mapper.toPollOptions(pollCreate.Options),
-		Visibility: Public,
+		Visibility: pollCreate.Visibility,
+		OpenTill:   closedAt,
 	}
 	poll.Init()
 	return poll, nil
@@ -52,6 +58,7 @@ func (mapper PollMapper) ToPollDetails(poll Poll) PollDetails {
 	pollList := mapper.ToPollList(poll)
 	return PollDetails{
 		PollList: pollList,
+		OpenTill: dtime.DateTimeToISO(poll.OpenTill),
 		Options:  poll.Options,
 	}
 }
@@ -70,6 +77,7 @@ func (mapper PollMapper) ToPollList(poll Poll) PollList {
 		Id:           poll.Id.Hex(),
 		Content:      poll.Content,
 		Participants: len(poll.VoterIds),
+		State:        string(poll.State),
 		Created:      dtime.DateTimeToISO(poll.Created),
 		Closed:       dtime.DateTimeToISO(poll.Closed),
 	}

@@ -24,7 +24,10 @@ func (mapper AuthMapper) ToUser(userRegister UserRegister) user.User {
 
 func (mapper AuthMapper) ToUserAuth(token string, user user.User) UserAuth {
 	return UserAuth{
-		Token: token,
-		User:  mapper.userMapper.ToUserDetails(user),
+		Id:        user.Id.Hex(),
+		FirstName: user.FirstName,
+		UserName:  user.UserName,
+		AvatarUrl: user.AvatarUrl,
+		Token:     token,
 	}
 }

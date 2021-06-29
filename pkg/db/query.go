@@ -24,6 +24,15 @@ func (builder QueryBuilder) Equal(property string, value interface{}) QueryBuild
 }
 
 func (builder QueryBuilder) Set(property string, value interface{}) QueryBuilder {
+	setResult := builder.query[operationSet]
+	if setResult != nil {
+		set := setResult.(bson.M)
+		if len(set) > 0 {
+			set[property] = value
+			return builder
+		}
+	}
+
 	builder.query[operationSet] = bson.M{property: value}
 	return builder
 }

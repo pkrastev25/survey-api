@@ -7,9 +7,15 @@ import (
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
 	"survey-api/pkg/poll"
+	"survey-api/pkg/urlpath"
+)
+
+const (
+	ApiPath = "/polls/{id}/vote"
 )
 
 type deps struct {
+	urlParser     *urlpath.UrlParser
 	loggerService *logger.LoggerService
 	authService   *auth.AuthService
 	pollHandler   *poll.PollHandler
@@ -37,6 +43,19 @@ func Init(
 			return
 		}
 
+		params, err := deps.urlParser.ParseParams(r.URL.Path, ApiPath)
+		if err != nil {
+			deps.loggerService.LogErr(err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		pollId := params["id"]
+		if len(pollId) <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		var pollVote poll.PollVote
 		err = json.NewDecoder(r.Body).Decode(&pollVote)
 		if err != nil {
@@ -45,7 +64,7 @@ func Init(
 			return
 		}
 
-		poll, err := deps.pollHandler.AddPollVote(userId, pollVote)
+		poll, err := deps.pollHandler.AddPollVote(pollId, userId, pollVote)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -68,6 +87,7 @@ func Init(
 func init() {
 	handler = Init(
 		&deps{
+			urlParser:     di.Container().UrlParser(),
 			loggerService: di.Container().LoggerService(),
 			authService:   di.Container().AuthService(),
 			pollHandler:   di.Container().PollHandler(),

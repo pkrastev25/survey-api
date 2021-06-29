@@ -36,14 +36,14 @@ func Init(deps *deps) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		user, err := deps.authHandler.Login(userLogin)
+		user, session, err := deps.authHandler.Login(userLogin)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		cookie, token, err := deps.authService.GenerateAuthUser(user)
+		cookie, token, err := deps.authService.GenerateAuth(session)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusInternalServerError)

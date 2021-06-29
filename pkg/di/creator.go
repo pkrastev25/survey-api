@@ -37,7 +37,7 @@ func createDbClient() *mongo.Client {
 	url := "mongodb://" + host + ":" + port
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	clientOptions := options.Client().ApplyURI(url).SetAuth(options.Credential{
+	clientOptions := options.Client().ApplyURI(url).SetDirect(true).SetAuth(options.Credential{
 		Username: user,
 		Password: password,
 	})
@@ -80,6 +80,7 @@ func createAuthHandler() *auth.AuthHandler {
 	authHandler := auth.NewAuthHandler(
 		deps.UserRepo(),
 		deps.AuthRepo(),
+		deps.CryptService(),
 		deps.TokenService(),
 		deps.CookieService(),
 		deps.AuthMapper(),
@@ -110,4 +111,12 @@ func createAuthMapper() *auth.AuthMapper {
 		deps.UserMapper(),
 	)
 	return &authMapper
+}
+
+func createUserHandler() *user.UserHandler {
+	userHandler := user.NewUserHandler(
+		deps.CryptService(),
+		deps.UserRepo(),
+	)
+	return &userHandler
 }

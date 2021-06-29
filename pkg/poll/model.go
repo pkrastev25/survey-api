@@ -3,12 +3,16 @@ package poll
 import (
 	"survey-api/pkg/db"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 const (
-	Public PollVisibility = "public"
+	VisibilityPublic PollVisibility = "public"
+)
+
+const (
+	StateOpen   PollState = "open"
+	StateClosed PollState = "closed"
 )
 
 const (
@@ -16,9 +20,13 @@ const (
 	propertyVoterIds = "voter_ids"
 	propertOptions   = "options"
 	propertyCount    = "count"
+	propertyState    = "state"
+	propertyClosed   = "closed"
+	propertyOpenTill = "open_till"
 )
 
 type PollVisibility string
+type PollState string
 
 type Poll struct {
 	db.BaseModel `bson:",inline"`
@@ -27,6 +35,8 @@ type Poll struct {
 	Options      []PollOption         `bson:"options"`
 	VoterIds     []primitive.ObjectID `bson:"voter_ids"`
 	Visibility   PollVisibility       `bson:"visibility"`
+	State        PollState            `bson:"state"`
+	OpenTill     primitive.DateTime   `bson:"open_till"`
 	Closed       primitive.DateTime   `bson:"closed,omitempty"`
 }
 
@@ -36,20 +46,8 @@ type PollOption struct {
 	Count   int    `bson:"count",json:"count"`
 }
 
-func NewPoll() Poll {
-	return Poll{
-		BaseModel: db.NewBaseModel(),
-	}
-}
-
 func (poll *Poll) Init() {
 	poll.BaseModel = db.NewBaseModel()
 	poll.VoterIds = []primitive.ObjectID{}
-}
-
-func (pollVote PollVote) Validate() error {
-	return validation.ValidateStruct(&pollVote,
-		validation.Field(&pollVote.PollId, validation.Required),
-		validation.Field(&pollVote.Index, validation.Required),
-	)
+	poll.State = StateOpen
 }

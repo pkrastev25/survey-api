@@ -35,14 +35,14 @@ func Init(deps *deps) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		session, user, err := deps.authHandler.RefreshSession(sessionId)
+		user, session, err := deps.authHandler.RefreshSession(sessionId)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		cookie, token, err := deps.authService.GenerateAuthSession(session)
+		cookie, token, err := deps.authService.GenerateAuth(session)
 		if err != nil {
 			deps.loggerService.LogErr(err)
 			w.WriteHeader(http.StatusBadRequest)

@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"survey-api/pkg/db"
+	"survey-api/pkg/dtime"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -25,9 +26,7 @@ func NewUserRepo(client *mongo.Client) (UserRepo, error) {
 	return repo, err
 }
 
-func (repo UserRepo) InsertOne(user User) (User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+func (repo UserRepo) InsertOneContext(ctx context.Context, user User) (User, error) {
 	result, err := repo.userCollection().InsertOne(ctx, user)
 	if err != nil {
 		return user, err
@@ -47,11 +46,15 @@ func (repo UserRepo) FindById(userIdString string) (User, error) {
 	return repo.FindOne(db.NewQueryBuilder().Equal(db.PropertyId, userId))
 }
 
-func (repo UserRepo) FindOne(query db.QueryBuilder) (User, error) {
-	var user User
+func (repo UserRepo) FindOne(filter db.QueryBuilder) (User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	result := repo.userCollection().FindOne(ctx, query.Build())
 	defer cancel()
+	return repo.FindOneContext(ctx, filter)
+}
+
+func (repo UserRepo) FindOneContext(ctx context.Context, filter db.QueryBuilder) (User, error) {
+	var user User
+	result := repo.userCollection().FindOne(ctx, filter.Build())
 	err := result.Err()
 	if err != nil {
 		return user, err
@@ -59,6 +62,30 @@ func (repo UserRepo) FindOne(query db.QueryBuilder) (User, error) {
 
 	err = result.Decode(&user)
 	return user, err
+}
+
+func (repo UserRepo) UpdateOne(filter db.QueryBuilder, updates db.QueryBuilder) (User, error) {
+	var user User
+	updates.Set(db.PropertyLastModified, dtime.DateTimeNow())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	result := repo.userCollection().FindOneAndUpdate(ctx, filter.Build(), updates.Build(), options)
+	err := result.Err()
+	if err != nil {
+		return user, err
+	}
+
+	err = result.Decode(&user)
+	return user, err
+}
+
+func (repo UserRepo) DeleteOne(filter db.QueryBuilder) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result := repo.userCollection().FindOneAndDelete(ctx, filter.Build())
+	return result.Err()
 }
 
 func (repo UserRepo) userCollection() *mongo.Collection {

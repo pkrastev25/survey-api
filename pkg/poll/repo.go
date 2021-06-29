@@ -46,11 +46,11 @@ func (repo PollRepo) FindById(pollIdString string) (Poll, error) {
 	return repo.FindOne(db.NewQueryBuilder().Equal(db.PropertyId, pollId))
 }
 
-func (repo PollRepo) FindOne(query db.QueryBuilder) (Poll, error) {
+func (repo PollRepo) FindOne(filter db.QueryBuilder) (Poll, error) {
 	var poll Poll
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	result := repo.pollCollection().FindOne(ctx, query.Build())
+	result := repo.pollCollection().FindOne(ctx, filter.Build())
 	err := result.Err()
 	if err != nil {
 		return poll, err

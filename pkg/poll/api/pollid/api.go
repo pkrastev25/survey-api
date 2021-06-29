@@ -1,4 +1,4 @@
-package api
+package pollid
 
 import (
 	"encoding/json"
@@ -7,14 +7,19 @@ import (
 	"survey-api/pkg/di"
 	"survey-api/pkg/logger"
 	"survey-api/pkg/poll"
+	"survey-api/pkg/urlpath"
+)
+
+const (
+	ApiPath = "/polls/{id}"
 )
 
 type deps struct {
-	loggerService         *logger.LoggerService
-	pollPaginationService *poll.PollPaginationService
-	authService           *auth.AuthService
-	pollHandler           *poll.PollHandler
-	pollMapper            *poll.PollMapper
+	urlParser     *urlpath.UrlParser
+	loggerService *logger.LoggerService
+	authService   *auth.AuthService
+	pollHandler   *poll.PollHandler
+	pollMapper    *poll.PollMapper
 }
 
 var handler func(http.ResponseWriter, *http.Request)
@@ -33,29 +38,34 @@ func Init(
 			return
 		}
 
+		params, err := deps.urlParser.ParseParams(r.URL.Path, ApiPath)
+		if err != nil {
+			deps.loggerService.LogErr(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		switch r.Method {
-		case http.MethodPost:
-			handlePost(w, r, userId, deps)
 		case http.MethodGet:
-			handleGet(w, r, userId, deps)
+			handleGet(w, r, params, userId, deps)
+		case http.MethodPut:
+			handlePut(w, r, params, userId, deps)
 		case http.MethodDelete:
-			handleDelete(w, r, userId, deps)
+			handleDelete(w, r, params, userId, deps)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}
 }
 
-func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *deps) {
-	var pollCreate poll.PollCreate
-	err := json.NewDecoder(r.Body).Decode(&pollCreate)
-	if err != nil {
-		deps.loggerService.LogErr(err)
+func handleGet(w http.ResponseWriter, r *http.Request, params map[string]string, userId string, deps *deps) {
+	pollId := params["id"]
+	if len(pollId) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	poll, err := deps.pollHandler.CreatePoll(userId, pollCreate)
+	poll, err := deps.pollHandler.GetPollById(pollId)
 	if err != nil {
 		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -74,43 +84,42 @@ func handlePost(w http.ResponseWriter, r *http.Request, userId string, deps *dep
 	w.Write(result)
 }
 
-func handleGet(w http.ResponseWriter, r *http.Request, userId string, deps *deps) {
-	query, err := deps.pollPaginationService.ParseQuery(r.URL.Query())
+func handlePut(w http.ResponseWriter, r *http.Request, params map[string]string, userId string, deps *deps) {
+	pollId := params["id"]
+	if len(pollId) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var pollModify poll.PollModify
+	err := json.NewDecoder(r.Body).Decode(&pollModify)
+	if err != nil {
+		deps.loggerService.LogErr(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	poll, err := deps.pollHandler.ModifyPoll(pollId, userId, pollModify)
 	if err != nil {
 		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	polls, paginationNavigation, err := deps.pollHandler.Paginate(query)
+	pollDetails := deps.pollMapper.ToPollDetails(poll)
+	result, err := json.Marshal(pollDetails)
 	if err != nil {
 		deps.loggerService.LogErr(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	pollLists := deps.pollMapper.ToPollLists(polls)
-	result, err := json.Marshal(pollLists)
-	if err != nil {
-		deps.loggerService.LogErr(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	linkHeader, err := deps.pollPaginationService.CreateLinkHeader(r, paginationNavigation)
-	if err != nil {
-		deps.loggerService.LogErr(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	deps.pollPaginationService.SetLinkHeader(w, linkHeader)
 	w.WriteHeader(http.StatusOK)
 	w.Write(result)
 }
 
-func handleDelete(w http.ResponseWriter, r *http.Request, userId string, deps *deps) {
-	pollId := r.URL.Query().Get("id")
+func handleDelete(w http.ResponseWriter, r *http.Request, params map[string]string, userId string, deps *deps) {
+	pollId := params["id"]
 	if len(pollId) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -129,11 +138,11 @@ func handleDelete(w http.ResponseWriter, r *http.Request, userId string, deps *d
 func init() {
 	handler = Init(
 		&deps{
-			pollPaginationService: di.Container().PollPaginationService(),
-			loggerService:         di.Container().LoggerService(),
-			authService:           di.Container().AuthService(),
-			pollHandler:           di.Container().PollHandler(),
-			pollMapper:            di.Container().PollMapper(),
+			urlParser:     di.Container().UrlParser(),
+			loggerService: di.Container().LoggerService(),
+			authService:   di.Container().AuthService(),
+			pollHandler:   di.Container().PollHandler(),
+			pollMapper:    di.Container().PollMapper(),
 		},
 	)
 }

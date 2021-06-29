@@ -27,10 +27,14 @@ func NewAuthRepo(client *mongo.Client) (AuthRepo, error) {
 }
 
 func (repo AuthRepo) InsertOne(session Session) (Session, error) {
-	session.UpdateLastModified()
-
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
+	return repo.InsertOneContext(ctx, session)
+}
+
+func (repo AuthRepo) InsertOneContext(ctx context.Context, session Session) (Session, error) {
+	session.UpdateLastModified()
+
 	result, err := repo.sessionCollection().InsertOne(ctx, session)
 	if err != nil {
 		return session, err
@@ -53,8 +57,8 @@ func (repo AuthRepo) FindById(sessionIdString string) (Session, error) {
 func (repo AuthRepo) FindOne(query db.QueryBuilder) (Session, error) {
 	var session Session
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	result := repo.sessionCollection().FindOne(ctx, query.Build())
 	defer cancel()
+	result := repo.sessionCollection().FindOne(ctx, query.Build())
 	err := result.Err()
 	if err != nil {
 		return session, err
@@ -64,18 +68,45 @@ func (repo AuthRepo) FindOne(query db.QueryBuilder) (Session, error) {
 	return session, err
 }
 
-func (repo AuthRepo) Execute(pipeline db.PipelineBuilder) (*mongo.Cursor, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+func (repo AuthRepo) Transaction(transaction func(context context.Context) (interface{}, error)) (interface{}, error) {
+	var result interface{}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return repo.sessionCollection().Aggregate(ctx, pipeline.Build())
+	err := repo.client.UseSession(ctx, func(sessionCtx mongo.SessionContext) error {
+		err := sessionCtx.StartTransaction()
+		if err != nil {
+			return err
+		}
+
+		transactionResult, err := transaction(sessionCtx)
+		if err != nil {
+			sessionCtx.AbortTransaction(sessionCtx)
+			return err
+		}
+
+		err = sessionCtx.CommitTransaction(sessionCtx)
+		if err != nil {
+			sessionCtx.AbortTransaction(sessionCtx)
+			return err
+		}
+
+		result = transactionResult
+		return nil
+	})
+
+	return result, err
 }
 
 func (repo AuthRepo) UpdateOne(filter db.QueryBuilder, updates db.QueryBuilder) (Session, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return repo.UpdateOneContext(ctx, filter, updates)
+}
+
+func (repo AuthRepo) UpdateOneContext(ctx context.Context, filter db.QueryBuilder, updates db.QueryBuilder) (Session, error) {
 	var session Session
 	updates.Set(db.PropertyLastModified, dtime.DateTimeNow())
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
 	result := repo.sessionCollection().FindOneAndUpdate(ctx, filter.Build(), updates.Build(), options)
 	err := result.Err()

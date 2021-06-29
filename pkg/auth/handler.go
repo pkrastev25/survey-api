@@ -2,11 +2,9 @@ package auth
 
 import (
 	"context"
-	"errors"
+	"survey-api/pkg/crypt"
 	"survey-api/pkg/db"
-	"survey-api/pkg/dtime"
 	"survey-api/pkg/user"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
@@ -16,6 +14,7 @@ import (
 type AuthHandler struct {
 	userRepo      *user.UserRepo
 	authRepo      *AuthRepo
+	cryptService  *crypt.CryptService
 	tokenService  *TokenService
 	cookieService *CookieService
 	authMapper    *AuthMapper
@@ -24,6 +23,7 @@ type AuthHandler struct {
 func NewAuthHandler(
 	userRepo *user.UserRepo,
 	authRepo *AuthRepo,
+	cryptService *crypt.CryptService,
 	tokenService *TokenService,
 	cookieService *CookieService,
 	authMapper *AuthMapper,
@@ -31,80 +31,123 @@ func NewAuthHandler(
 	return AuthHandler{
 		userRepo:      userRepo,
 		authRepo:      authRepo,
+		cryptService:  cryptService,
 		tokenService:  tokenService,
 		cookieService: cookieService,
 		authMapper:    authMapper,
 	}
 }
 
-func (handler AuthHandler) Register(userRegister UserRegister) (user.User, error) {
-	var user user.User
+func (handler AuthHandler) Register(userRegister UserRegister) (user.User, Session, error) {
+	var userModel user.User
+	var sessionModel Session
 	err := userRegister.Validate()
 	if err != nil {
-		return user, err
+		return userModel, sessionModel, err
 	}
 
-	user = handler.authMapper.ToUser(userRegister)
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	userModel = handler.authMapper.ToUser(userRegister)
+	hashedPassword, err := handler.cryptService.GeneratePasswordHash(userModel.Password)
 	if err != nil {
-		return user, err
+		return userModel, sessionModel, err
 	}
 
-	user.Password = string(hashedPassword)
-	return handler.userRepo.InsertOne(user)
+	userModel.Password = hashedPassword
+	userKey := "user"
+	sessionKey := "session"
+	createUserAndSession := func(context context.Context) (interface{}, error) {
+		user, err := handler.userRepo.InsertOneContext(context, userModel)
+		if err != nil {
+			return nil, err
+		}
+
+		session, err := handler.authRepo.InsertOneContext(context, NewSessionUserId(user.Id))
+		if err != nil {
+			return nil, err
+		}
+
+		result := map[string]interface{}{
+			userKey:    user,
+			sessionKey: session,
+		}
+		return result, nil
+	}
+	result, err := handler.authRepo.Transaction(createUserAndSession)
+	if err != nil {
+		return userModel, sessionModel, err
+	}
+
+	resultMap := result.(map[string]interface{})
+	userModel = resultMap[userKey].(user.User)
+	sessionModel = resultMap[sessionKey].(Session)
+	return userModel, sessionModel, nil
 }
 
-func (handler AuthHandler) Login(userLogin UserLogin) (user.User, error) {
+func (handler AuthHandler) Login(userLogin UserLogin) (user.User, Session, error) {
 	var userModel user.User
+	var sessionModel Session
 	err := userLogin.Validate()
 	if err != nil {
-		return userModel, err
+		return userModel, sessionModel, err
 	}
 
-	userModel, err = handler.userRepo.FindOne(db.NewQueryBuilder().Equal(user.PropertyUserName, userLogin.UserName))
+	filter := db.NewQueryBuilder().Equal(user.PropertyUserName, userLogin.UserName)
+	userModel, err = handler.userRepo.FindOne(filter)
 	if err != nil {
-		return userModel, err
+		return userModel, sessionModel, err
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(userModel.Password), []byte(userLogin.Password))
-	return userModel, err
+	if err != nil {
+		return userModel, sessionModel, err
+	}
+
+	sessionModel, err = handler.authRepo.InsertOne(NewSessionUserId(userModel.Id))
+	if err != nil {
+		return userModel, sessionModel, err
+	}
+
+	return userModel, sessionModel, nil
 }
 
-func (handler AuthHandler) RefreshSession(sessionIdString string) (Session, user.User, error) {
-	var session Session
+func (handler AuthHandler) RefreshSession(sessionIdString string) (user.User, Session, error) {
 	var userModel user.User
+	var sessionModel Session
 	sessionId, err := primitive.ObjectIDFromHex(sessionIdString)
 	if err != nil {
-		return session, userModel, err
+		return userModel, sessionModel, err
 	}
 
-	pipeline := db.NewPipelineBuilder().MatchStage(db.PropertyId, sessionId).SetStage(db.PropertyLastModified, dtime.DateTimeNow()).LookUpStage(user.CollectionUser, propertyUserId, db.PropertyId, "user")
-	cursor, err := handler.authRepo.Execute(pipeline)
+	userKey := "user"
+	sessionKey := "session"
+	refreshSession := func(context context.Context) (interface{}, error) {
+		sessionFilter := db.NewQueryBuilder().Equal(db.PropertyId, sessionId)
+		session, err := handler.authRepo.UpdateOneContext(context, sessionFilter, db.NewQueryBuilder())
+		if err != nil {
+			return nil, err
+		}
+
+		userFilter := db.NewQueryBuilder().Equal(db.PropertyId, session.UserId)
+		user, err := handler.userRepo.FindOneContext(context, userFilter)
+		if err != nil {
+			return nil, err
+		}
+
+		result := map[string]interface{}{
+			userKey:    user,
+			sessionKey: session,
+		}
+		return result, nil
+	}
+	result, err := handler.authRepo.Transaction(refreshSession)
 	if err != nil {
-		return session, userModel, err
+		return userModel, sessionModel, err
 	}
 
-	var results = []struct {
-		Session Session     `bson:",inline"`
-		User    []user.User `bson:"user"`
-	}{}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	err = cursor.All(ctx, &results)
-	if err != nil {
-		return session, userModel, err
-	}
-
-	if len(results) <= 0 {
-		return session, userModel, errors.New("")
-	}
-
-	result := results[0]
-	if len(result.User) <= 0 {
-		return session, userModel, errors.New("")
-	}
-
-	return result.Session, result.User[0], nil
+	resultMap := result.(map[string]interface{})
+	userModel = resultMap[userKey].(user.User)
+	sessionModel = resultMap[sessionKey].(Session)
+	return userModel, sessionModel, nil
 }
 
 func (handler AuthHandler) Logout(userIdString string) error {

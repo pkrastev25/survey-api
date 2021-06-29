@@ -3,9 +3,11 @@ package di
 import (
 	"reflect"
 	"survey-api/pkg/auth"
+	"survey-api/pkg/crypt"
 	"survey-api/pkg/logger"
 	"survey-api/pkg/pagination"
 	"survey-api/pkg/poll"
+	"survey-api/pkg/urlpath"
 	"survey-api/pkg/user"
 	"sync"
 
@@ -20,6 +22,7 @@ var (
 type Dependencies struct {
 	mongoClient           *mongo.Client
 	loggerService         *logger.LoggerService
+	cryptService          *crypt.CryptService
 	tokenService          *auth.TokenService
 	cookieService         *auth.CookieService
 	authService           *auth.AuthService
@@ -29,10 +32,12 @@ type Dependencies struct {
 	pollRepo              *poll.PollRepo
 	authHandler           *auth.AuthHandler
 	pollHandler           *poll.PollHandler
+	userHandler           *user.UserHandler
 	authMapper            *auth.AuthMapper
 	userMapper            *user.UserMapper
 	pollMapper            *poll.PollMapper
 	paginationMapper      *pagination.PaginationMapper
+	urlParser             *urlpath.UrlParser
 }
 
 func init() {
@@ -199,4 +204,36 @@ func (deps *Dependencies) AuthService() *auth.AuthService {
 	}
 
 	return deps.authService
+}
+
+func (deps *Dependencies) UrlParser() *urlpath.UrlParser {
+	if deps.urlParser == nil {
+		syncOnceStore[15].Do(func() {
+			urlParser := urlpath.NewUrlParser()
+			deps.urlParser = &urlParser
+		})
+	}
+
+	return deps.urlParser
+}
+
+func (deps *Dependencies) CryptService() *crypt.CryptService {
+	if deps.cryptService == nil {
+		syncOnceStore[16].Do(func() {
+			cryptService := crypt.NewCryptService()
+			deps.cryptService = &cryptService
+		})
+	}
+
+	return deps.cryptService
+}
+
+func (deps *Dependencies) UserHandler() *user.UserHandler {
+	if deps.userHandler == nil {
+		syncOnceStore[17].Do(func() {
+			deps.userHandler = createUserHandler()
+		})
+	}
+
+	return deps.userHandler
 }

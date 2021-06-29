@@ -3,7 +3,6 @@ package auth
 import (
 	"errors"
 	"net/http"
-	"survey-api/pkg/user"
 )
 
 type AuthService struct {
@@ -24,17 +23,7 @@ func NewAuthService(
 	}
 }
 
-func (handler AuthService) GenerateAuthUser(user user.User) (http.Cookie, string, error) {
-	var cookie http.Cookie
-	session, err := handler.authRepo.InsertOne(NewSessionUserId(user.Id))
-	if err != nil {
-		return cookie, "", err
-	}
-
-	return handler.GenerateAuthSession(session)
-}
-
-func (handler AuthService) GenerateAuthSession(session Session) (http.Cookie, string, error) {
+func (handler AuthService) GenerateAuth(session Session) (http.Cookie, string, error) {
 	var cookie http.Cookie
 	token, err := handler.tokenService.GenerateJwtToken(session.UserId.Hex())
 	if err != nil {

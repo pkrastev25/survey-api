@@ -1,10 +1,20 @@
 version: '3.7'
 services:
     survey_mongodb:
+        hostname: mongodb
         image: mongo:latest
         env_file:
-            - mongo.env
+            - .env
+        environment:
+            - MONGO_INITDB_ROOT_USERNAME
+            - MONGO_INITDB_ROOT_PASSWORD
+            - MONGO_REPLICA_SET_NAME
         ports:
             - 27017:27017
         volumes:
             - ./db:/data/db
+        healthcheck:
+            test: test $$(echo "rs.initiate().ok || rs.status().ok" | mongo -u $${MONGO_INITDB_ROOT_USERNAME} -p $${MONGO_INITDB_ROOT_PASSWORD} --quiet) -eq 1
+            interval: 10s
+            start_period: 30s
+        command: ["mongod", "--replSet", "${MONGO_REPLICA_SET_NAME}", "--bind_ip_all"]

@@ -43,6 +43,10 @@ func (handler PollHandler) CreatePoll(userId string, pollCreate PollCreate) (Pol
 	return handler.pollRepo.InsertOne(poll)
 }
 
+func (handler PollHandler) GetPollById(pollIdString string) (Poll, error) {
+	return handler.pollRepo.FindById(pollIdString)
+}
+
 func (handler PollHandler) Paginate(query QueryPoll) ([]Poll, map[string]QueryPoll, error) {
 	err := query.Validate()
 	if err != nil {
@@ -129,9 +133,14 @@ func (handler PollHandler) generateQueryPoll(query QueryPoll, poll Poll, paginat
 	return query.ClonePaginate(paginate).CloneSort(sort)
 }
 
-func (handler PollHandler) AddPollVote(userIdString string, pollVote PollVote) (Poll, error) {
+func (handler PollHandler) AddPollVote(pollIdString string, userIdString string, pollVote PollVote) (Poll, error) {
 	var poll Poll
 	err := pollVote.Validate()
+	if err != nil {
+		return poll, err
+	}
+
+	pollId, err := primitive.ObjectIDFromHex(pollIdString)
 	if err != nil {
 		return poll, err
 	}
@@ -141,13 +150,30 @@ func (handler PollHandler) AddPollVote(userIdString string, pollVote PollVote) (
 		return poll, err
 	}
 
-	pollId, err := primitive.ObjectIDFromHex(pollVote.PollId)
+	filter := db.NewQueryBuilder().Equal(db.PropertyId, pollId).Equal(propertyState, StateOpen).NotIn(propertyVoterIds, []interface{}{userId})
+	updates := db.NewQueryBuilder().AddToSet(propertyVoterIds, userId).Increment(propertOptions+"."+pollVote.Index+"."+propertyCount, 1)
+	return handler.pollRepo.UpdateOne(filter, updates)
+}
+
+func (handler PollHandler) ModifyPoll(pollIdString string, userIdString string, pollModify PollModify) (Poll, error) {
+	var poll Poll
+	err := pollModify.Validate()
 	if err != nil {
 		return poll, err
 	}
 
-	filter := db.NewQueryBuilder().Equal(db.PropertyId, pollId).NotIn(propertyVoterIds, []interface{}{userId})
-	updates := db.NewQueryBuilder().AddToSet(propertyVoterIds, userId).Increment(propertOptions+"."+pollVote.Index+"."+propertyCount, 1)
+	pollId, err := primitive.ObjectIDFromHex(pollIdString)
+	if err != nil {
+		return poll, err
+	}
+
+	userId, err := primitive.ObjectIDFromHex(userIdString)
+	if err != nil {
+		return poll, err
+	}
+
+	filter := db.NewQueryBuilder().Equal(db.PropertyId, pollId).Equal(propertCreatorId, userId).Equal(propertyState, StateOpen)
+	updates := db.NewQueryBuilder().Set(propertyState, pollModify.State).Set(propertyOpenTill, dtime.DateTimeNow()).Set(propertyClosed, dtime.DateTimeNow())
 	return handler.pollRepo.UpdateOne(filter, updates)
 }
 

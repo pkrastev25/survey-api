@@ -1,5 +1,9 @@
 package user
 
+import (
+	"survey-api/pkg/dtime"
+)
+
 type UserMapper struct {
 }
 
@@ -13,5 +17,6 @@ func (mapper UserMapper) ToUserDetails(user User) UserDetails {
 		FirstName: user.FirstName,
 		UserName:  user.UserName,
 		AvatarUrl: user.AvatarUrl,
+		Created:   dtime.DateTimeToISO(user.Created),
 	}
 }

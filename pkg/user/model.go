@@ -5,7 +5,10 @@ import (
 )
 
 const (
-	PropertyUserName = "user_name"
+	PropertyFirstName = "first_name"
+	PropertyUserName  = "user_name"
+	PropertyPassword  = "password"
+	PropertyAvatarUrl = "avatar_url"
 )
 
 type User struct {

@@ -18,8 +18,12 @@ import (
 	"survey-api/pkg/auth/api/logout"
 	"survey-api/pkg/auth/api/refresh"
 	"survey-api/pkg/auth/api/register"
-	pollapi "survey-api/pkg/poll/api"
+	"survey-api/pkg/poll/api/pollid"
+	"survey-api/pkg/poll/api/polls"
 	pollvote "survey-api/pkg/poll/api/vote"
+	"survey-api/pkg/user/api/userid"
+
+	"github.com/gorilla/mux"
 )
 
 func main() {
@@ -33,14 +37,17 @@ func main() {
 		port = "3000"
 	}
 
-	http.HandleFunc("/register", register.Handler())
-	http.HandleFunc("/login", login.Handler())
-	http.HandleFunc("/logout", logout.Handler())
-	http.HandleFunc("/token/refresh", refresh.Handler())
-	http.HandleFunc("/poll", pollapi.Handler())
-	http.HandleFunc("/poll/vote", pollvote.Handler())
+	router := mux.NewRouter()
+	router.HandleFunc("/register", register.Handler())
+	router.HandleFunc("/login", login.Handler())
+	router.HandleFunc("/logout", logout.Handler())
+	router.HandleFunc("/token/refresh", refresh.Handler())
+	router.HandleFunc("/polls", polls.Handler())
+	router.HandleFunc(pollvote.ApiPath, pollvote.Handler())
+	router.HandleFunc(pollid.ApiPath, pollid.Handler())
+	router.HandleFunc(userid.ApiPath, userid.Handler())
 
-	err := http.ListenAndServe(host+":"+port, nil)
+	err := http.ListenAndServe(host+":"+port, router)
 	if err != nil {
 		panic(err)
 	}
